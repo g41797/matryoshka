@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/g41797/odin-mbox/actions/workflows/ci.yml/badge.svg)](https://github.com/g41797/odin-mbox/actions/workflows/ci.yml)
 
-Inter-thread mailbox library for Odin. Thread-safe. Zero-allocation.
+Inter-thread communication for Odin. Intrusive. Thread-safe. Zero-allocation.
 
 Port of [mailbox](https://github.com/g41797/mailbox) (Zig). Used by [otofu](https://github.com/g41797/otofu).
 
