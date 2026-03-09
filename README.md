@@ -53,10 +53,12 @@ Odin already has `core:sync/chan` — Go-style typed channels. If that is enough
 | Allocation per message | yes — copies the value | zero — intrusive link |
 | nbio integration | no | yes — `Loop_Mailbox` |
 | Receive timeout | no | yes |
-| Interrupt without close | no | yes — `interrupt()` + `reset()` |
-| Message ownership | channel owns the copy | sender always owns |
+| Interrupt without close | no | yes — `interrupt()` (self-clearing) |
+| Message ownership | channel owns the copy | caller owns memory; mailbox borrows node while queued |
 
-**Sender always owns** means: `mbox` never copies your message. It links your struct directly into the queue. You own the memory from creation to destruction. The mailbox only borrows the `node` field while the message is queued. No allocator is ever touched inside mailbox operations.
+**Caller owns memory; mailbox borrows node while queued** means: `mbox` never copies your message. It links your struct directly into the queue. You own the memory from creation to destruction. The mailbox only borrows the `node` field while the message is queued. No allocator is ever touched inside mailbox operations. `close()` returns any unprocessed messages to the caller as a `list.List`.
+
+**One place only:** a `list.Node` can only be in one list at a time. Do not send a message that is already queued somewhere else. Remove it from any other intrusive structure before sending.
 
 **nbio integration** is the strongest reason to use `mbox`. `Loop_Mailbox` wakes an nbio event loop when a message arrives. `core:sync/chan` cannot do this.
 
@@ -159,9 +161,8 @@ for {
 | `send(&mb, &msg)` | `bool` | Add message. Returns false if closed. |
 | `try_receive(&mb)` | `(^T, bool)` | Return message if available. Never blocks. |
 | `wait_receive(&mb, timeout?)` | `(^T, Mailbox_Error)` | Block until message, timeout, or interrupt. |
-| `interrupt(&mb)` | — | Wake all waiters with `.Interrupted`. |
-| `close(&mb)` | — | Block new sends. Wake all waiters with `.Closed`. |
-| `reset(&mb)` | — | Clear closed and interrupted flags. |
+| `interrupt(&mb)` | `bool` | Wake one waiter with `.Interrupted`. Returns false if already interrupted or closed. Flag is self-clearing. |
+| `close(&mb)` | `(list.List, bool)` | Block new sends. Wake all waiters with `.Closed`. Returns remaining messages and whether this was the first close. |
 
 `Mailbox_Error` values: `None`, `Timeout`, `Closed`, `Interrupted`.
 
@@ -171,7 +172,7 @@ for {
 |---|---|---|
 | `send_to_loop(&mb, &msg)` | `bool` | Add message, wake the loop. Returns false if closed. |
 | `try_receive_loop(&mb)` | `(^T, bool)` | Return message if available. Never blocks. |
-| `close_loop(&mb)` | — | Block new sends. Wake loop one last time. |
+| `close_loop(&mb)` | `(list.List, bool)` | Block new sends. Wake loop one last time. Returns remaining messages and whether this was the first close. |
 | `stats(&mb)` | `int` | Approximate pending message count. |
 
 ---
@@ -206,7 +207,6 @@ odin-mbox/
 ## Design docs
 
 - [mailbox_design.md](design/mailbox_design.md) — architecture notes
-- [mbox_readme.md](design/mbox_readme.md) — full readme with history
 - [mbox_examples.md](design/mbox_examples.md) — usage patterns
 
 ---

@@ -61,6 +61,15 @@ where intrinsics.type_has_field(T, "node"),
 
 If the struct does not have the right `node` field, the compiler gives an error.
 
+### One place only
+
+A `list.Node` can only be in one list at a time.
+Do not send a message that is already queued somewhere else.
+If the message is in another intrusive structure, call `list.remove` first.
+
+While a message is in the mailbox, the mailbox owns the node.
+When `close()` returns, ownership returns to the caller via the returned `list.List`.
+
 ---
 
 ## `Mailbox($T)` — worker thread mailbox
@@ -79,9 +88,8 @@ If the struct does not have the right `node` field, the compiler gives an error.
 - `send(msg)` — adds message, signals one waiter.
 - `try_receive()` — checks for message, returns immediately.
 - `wait_receive(timeout)` — blocks until message arrives, timeout, or interrupt.
-- `interrupt()` — wakes all waiters with `.Interrupted`.
-- `close()` — blocks new sends, wakes all waiters with `.Closed`.
-- `reset()` — clears closed and interrupted flags.
+- `interrupt()` — wakes one waiter with `.Interrupted`. Returns false if already interrupted or closed. Flag is self-clearing.
+- `close()` — blocks new sends, wakes all waiters with `.Closed`. Returns `(list.List, bool)` — remaining messages and whether this was the first close.
 
 ### Internal send pattern
 ```odin
@@ -115,7 +123,7 @@ m.len -= 1
 ### API
 - `send_to_loop(msg)` — adds message, calls `nbio.wake_up` if mailbox was empty.
 - `try_receive_loop()` — returns one message. Never blocks. Call in a loop to drain.
-- `close_loop()` — blocks new sends, calls `nbio.wake_up` once.
+- `close_loop()` — blocks new sends, calls `nbio.wake_up` once. Returns `(list.List, bool)` — remaining messages and whether this was the first close.
 - `stats()` — approximate pending count. Not locked.
 
 ### Internal send pattern

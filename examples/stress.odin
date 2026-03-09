@@ -1,6 +1,7 @@
 package examples
 
 import mbox ".."
+import list "core:container/intrusive/list"
 import "core:sync"
 import "core:thread"
 
@@ -11,8 +12,8 @@ import "core:thread"
 // The example returns true if all messages were received.
 //
 // Messages are pre-allocated on the heap. Producers index into their slice.
-// After the consumer counts all 10,000, it signals done.
-// Main waits for done, then closes the mailbox.
+// After the consumer counts all N, it signals done.
+// Main waits for done, then closes the mailbox and drains any remaining messages.
 stress_example :: proc() -> bool {
 	N :: 10_000
 	P :: 10
@@ -30,6 +31,9 @@ stress_example :: proc() -> bool {
 		count := 0
 		for count < N {
 			_, err := mbox.wait_receive(mb)
+			if err == .Closed {
+				break
+			}
 			if err == .None {
 				count += 1
 			}
@@ -49,7 +53,14 @@ stress_example :: proc() -> bool {
 
 	// Wait for consumer to count all N messages.
 	sync.sema_wait(&done)
-	mbox.close(&mb)
+
+	// Close and drain any remaining messages.
+	// In this flow remaining is empty (consumer got all N), but capturing the
+	// return value and draining is correct practice and demonstrates the pattern.
+	remaining, _ := mbox.close(&mb)
+	for node := list.pop_front(&remaining); node != nil; node = list.pop_front(&remaining) {
+		// process or free undelivered messages here
+	}
 
 	return true
 }

@@ -109,18 +109,22 @@ case .Interrupted:
 
 ## 4. Interrupt for cancellation
 
-```odin
-// From any thread, cancel all waiters:
-mbox.interrupt(&mb)
+The interrupted flag is self-clearing: `wait_receive` clears it when it returns `.Interrupted`.
+`interrupt()` returns false if already interrupted or closed.
 
-// Each waiting thread gets .Interrupted:
+```odin
+// From any thread, cancel one waiter:
+ok := mbox.interrupt(&mb)
+
+// The waiting thread gets .Interrupted:
 msg, err := mbox.wait_receive(&mb)
 if err == .Interrupted {
     // stop work
 }
 
-// After interrupt, reset to allow reuse:
-mbox.reset(&mb)
+// The flag is now cleared. A subsequent interrupt() will succeed.
+// To reuse the mailbox after all waiters have exited, assign zero value:
+// mb = {}
 ```
 
 ---
@@ -177,3 +181,49 @@ mbox.close(&mb)
 ```
 
 See `examples/stress.odin` for a working version of this pattern.
+
+---
+
+## 7. One place only — remove before send
+
+A `list.Node` can only be in one list at a time.
+If your struct is already in another intrusive list, remove it first.
+
+```odin
+// Remove from existing list before sending to mailbox:
+list.remove(&other_list, &msg.node)
+ok := mbox.send(&mb, &msg)
+```
+
+Do not send a message that is already queued. The result is a broken list.
+
+---
+
+## 8. Drain unprocessed messages after close
+
+`close()` and `close_loop()` return the remaining list of unprocessed messages.
+Iterate it to process or free them.
+
+```odin
+remaining, was_open := mbox.close(&mb)
+for node := list.pop_front(&remaining); node != nil; node = list.pop_front(&remaining) {
+    msg := container_of(node, Msg, "node")
+    // process or free msg
+}
+```
+
+While a message is queued, the mailbox owns the node.
+`close()` transfers ownership back to the caller.
+
+To reuse after close (after all waiters have exited):
+
+```odin
+// 1. Close and drain remaining messages.
+remaining, _ := mbox.close(&mb)
+// drain remaining...
+
+// 2. Wait for all threads that were using this mailbox to exit.
+
+// 3. Reinitialize via zero assignment — all fields reset correctly.
+mb = {}
+```

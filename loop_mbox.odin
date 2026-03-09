@@ -69,13 +69,23 @@ try_receive_loop :: proc(
 	return container_of(raw, T, "node"), true
 }
 
-// close_loop prevents new messages and wakes the loop one last time.
-close_loop :: proc(m: ^Loop_Mailbox($T)) where intrinsics.type_has_field(T, "node"),
+// close_loop prevents new messages, wakes the loop one last time,
+// and returns any unprocessed messages as a list.List.
+// Returns (remaining, true) on first call; ({}, false) if already closed.
+close_loop :: proc(m: ^Loop_Mailbox($T)) -> (remaining: list.List, was_open: bool) where intrinsics.type_has_field(T, "node"),
 	intrinsics.type_field_type(T, "node") == list.Node {
 	sync.mutex_lock(&m.mutex)
+	if m.closed {
+		sync.mutex_unlock(&m.mutex)
+		return {}, false
+	}
 	m.closed = true
+	remaining = m.list
+	m.list = {}
+	m.len = 0
 	sync.mutex_unlock(&m.mutex)
 	nbio.wake_up(m.loop)
+	return remaining, true
 }
 
 // stats returns the current number of pending messages.

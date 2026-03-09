@@ -67,7 +67,7 @@ test_close_blocks_send :: proc(t: ^testing.T) {
 	mb: mbox.Mailbox(Msg)
 	m := Msg{data = 1}
 
-	mbox.close(&mb)
+	_, _ = mbox.close(&mb)
 
 	ok := mbox.send(&mb, &m)
 	testing.expect(t, !ok, "send to closed mailbox should return false")
@@ -85,10 +85,38 @@ test_close_wakes_waiter :: proc(t: ^testing.T) {
 	})
 
 	time.sleep(10 * time.Millisecond)
-	mbox.close(&mb)
+	_, _ = mbox.close(&mb)
 	time.sleep(20 * time.Millisecond)
 
 	testing.expect(t, result == .Closed, "waiter should get .Closed after close()")
+}
+
+@(test)
+test_close_returns_remaining :: proc(t: ^testing.T) {
+	mb: mbox.Mailbox(Msg)
+	a := Msg{data = 10}
+	b := Msg{data = 20}
+
+	mbox.send(&mb, &a)
+	mbox.send(&mb, &b)
+
+	remaining, was_open := mbox.close(&mb)
+	testing.expect(t, was_open, "first close should return was_open=true")
+
+	count := 0
+	for node := list.pop_front(&remaining); node != nil; node = list.pop_front(&remaining) {
+		count += 1
+	}
+	testing.expect(t, count == 2, "close should return 2 remaining messages")
+}
+
+@(test)
+test_double_close :: proc(t: ^testing.T) {
+	mb: mbox.Mailbox(Msg)
+	_, was_open1 := mbox.close(&mb)
+	_, was_open2 := mbox.close(&mb)
+	testing.expect(t, was_open1, "first close should return was_open=true")
+	testing.expect(t, !was_open2, "second close should return was_open=false")
 }
 
 @(test)
@@ -103,25 +131,46 @@ test_interrupt_wakes_waiter :: proc(t: ^testing.T) {
 	})
 
 	time.sleep(10 * time.Millisecond)
-	mbox.interrupt(&mb)
+	ok := mbox.interrupt(&mb)
+	testing.expect(t, ok, "interrupt should return true on first call")
 	time.sleep(20 * time.Millisecond)
-
 	testing.expect(t, result == .Interrupted, "waiter should get .Interrupted after interrupt()")
+
+	// Flag is self-cleared — second interrupt() should succeed now
+	ok2 := mbox.interrupt(&mb)
+	testing.expect(t, ok2, "interrupt should return true after flag was cleared by receiver")
 }
 
 @(test)
-test_reset_allows_reuse :: proc(t: ^testing.T) {
+test_double_interrupt :: proc(t: ^testing.T) {
+	mb: mbox.Mailbox(Msg)
+	ok1 := mbox.interrupt(&mb)
+	ok2 := mbox.interrupt(&mb)
+	testing.expect(t, ok1, "first interrupt should return true")
+	testing.expect(t, !ok2, "second interrupt should return false — already interrupted")
+}
+
+@(test)
+test_interrupt_on_closed :: proc(t: ^testing.T) {
+	mb: mbox.Mailbox(Msg)
+	_, _ = mbox.close(&mb)
+	ok := mbox.interrupt(&mb)
+	testing.expect(t, !ok, "interrupt on closed mailbox should return false")
+}
+
+@(test)
+test_reuse_via_zero :: proc(t: ^testing.T) {
 	mb: mbox.Mailbox(Msg)
 	m := Msg{data = 7}
 
-	mbox.close(&mb)
-	mbox.reset(&mb)
+	_, _ = mbox.close(&mb)
+	mb = {} // reinitialize — safe after no waiters
 
 	ok := mbox.send(&mb, &m)
-	testing.expect(t, ok, "send after reset should succeed")
+	testing.expect(t, ok, "send after reinitialization should succeed")
 
 	got, ok2 := mbox.try_receive(&mb)
-	testing.expect(t, ok2 && got != nil && got.data == 7, "try_receive after reset should return message")
+	testing.expect(t, ok2 && got != nil && got.data == 7, "try_receive should return message")
 }
 
 @(test)

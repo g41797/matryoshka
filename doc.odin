@@ -27,6 +27,12 @@ This contract is enforced at compile time.
 If your struct does not have a "node: list.Node" field,
 the compiler will give an error.
 
+One place only:
+A message can only be in one mailbox (or one list) at a time.
+Remove it from any other structure before sending.
+While a message is queued, the mailbox owns the node.
+close() returns any unprocessed messages to the caller.
+
 Example — worker thread mailbox:
 
     mb: mbox.Mailbox(My_Msg)
@@ -37,6 +43,13 @@ Example — worker thread mailbox:
 
     // receiver thread:
     received, err := mbox.wait_receive(&mb)
+
+    // shutdown:
+    remaining, was_open := mbox.close(&mb)
+    // drain remaining...
+
+    // reuse (after all waiters have exited):
+    mb = {}
 
 Example — nbio loop mailbox:
 

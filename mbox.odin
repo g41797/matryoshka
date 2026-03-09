@@ -81,12 +81,15 @@ wait_receive :: proc(
 	defer sync.mutex_unlock(&m.mutex)
 
 	if m.len > 0 {
-		return _pop(m), .None
+		msg = _pop(m)
+		sync.cond_signal(&m.cond)
+		return msg, .None
 	}
 	if m.closed {
 		return nil, .Closed
 	}
 	if m.interrupted {
+		m.interrupted = false
 		return nil, .Interrupted
 	}
 	if timeout == 0 {
@@ -105,6 +108,7 @@ wait_receive :: proc(
 			return nil, .Closed
 		}
 		if m.interrupted {
+			m.interrupted = false
 			return nil, .Interrupted
 		}
 		if !ok {
@@ -112,34 +116,53 @@ wait_receive :: proc(
 		}
 	}
 
-	return _pop(m), .None
+	if m.closed {
+		return nil, .Closed
+	}
+	if m.interrupted {
+		m.interrupted = false
+		return nil, .Interrupted
+	}
+
+	msg = _pop(m)
+	sync.cond_signal(&m.cond)
+	return msg, .None
 }
 
-// interrupt wakes all waiting threads. They return .Interrupted.
-interrupt :: proc(m: ^Mailbox($T)) where intrinsics.type_has_field(T, "node"),
+// interrupt wakes one waiting thread. It returns false if already interrupted or closed.
+// The interrupted flag is self-clearing: wait_receive clears it when returning .Interrupted.
+interrupt :: proc(m: ^Mailbox($T)) -> bool where intrinsics.type_has_field(T, "node"),
 	intrinsics.type_field_type(T, "node") == list.Node {
 	sync.mutex_lock(&m.mutex)
+	if m.closed || m.interrupted {
+		sync.mutex_unlock(&m.mutex)
+		return false
+	}
 	m.interrupted = true
 	sync.mutex_unlock(&m.mutex)
-	sync.cond_broadcast(&m.cond)
+	sync.cond_signal(&m.cond)
+	return true
 }
 
-// close prevents new messages and wakes all waiting threads.
-close :: proc(m: ^Mailbox($T)) where intrinsics.type_has_field(T, "node"),
+// close prevents new messages, wakes all waiting threads with .Closed,
+// and returns any unprocessed messages as a list.List.
+// Returns (remaining, true) on first call; ({}, false) if already closed.
+// Reuse: after all waiters have exited, assign zero value: mb = {}
+close :: proc(m: ^Mailbox($T)) -> (remaining: list.List, was_open: bool) where intrinsics.type_has_field(T, "node"),
 	intrinsics.type_field_type(T, "node") == list.Node {
 	sync.mutex_lock(&m.mutex)
+	if m.closed {
+		sync.mutex_unlock(&m.mutex)
+		return {}, false
+	}
 	m.closed = true
+	m.interrupted = false
+	remaining = m.list
+	m.list = {}
+	m.len = 0
 	sync.mutex_unlock(&m.mutex)
 	sync.cond_broadcast(&m.cond)
-}
-
-// reset clears the closed and interrupted flags so the mailbox can be reused.
-reset :: proc(m: ^Mailbox($T)) where intrinsics.type_has_field(T, "node"),
-	intrinsics.type_field_type(T, "node") == list.Node {
-	sync.mutex_lock(&m.mutex)
-	m.interrupted = false
-	m.closed = false
-	sync.mutex_unlock(&m.mutex)
+	return remaining, true
 }
 
 // _pop removes and returns the front message. Caller must hold m.mutex.
