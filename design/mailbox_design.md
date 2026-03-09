@@ -13,7 +13,30 @@ Two mailbox types. They solve different problems.
 
 Both types use `core:container/intrusive/list` internally.
 
-The list is intrusive. The node is embedded in the user struct. No heap allocation per message.
+### What intrusive means
+
+A normal list allocates a wrapper node for each item:
+
+```odin
+// The list allocates one of these per item (behind the scenes):
+List_Node :: struct {
+    next: ^List_Node,
+    data: ^My_Msg,   // pointer to your data — two objects per message
+}
+```
+
+An intrusive list does not allocate anything. The link lives inside your struct:
+
+```odin
+My_Msg :: struct {
+    node: list.Node, // the link IS your struct — one object, zero allocation
+    data: int,
+}
+```
+
+- Zero allocations per message.
+- You own the memory.
+- Your struct must stay alive while it is in the list.
 
 User struct contract:
 - Must have a field named `node`.

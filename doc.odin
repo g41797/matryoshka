@@ -1,9 +1,13 @@
 /*
-Inter-thread mailbox library for Odin.
+Inter-thread mailbox library for Odin. Thread-safe. Zero-allocation.
 
 Two mailbox types:
 - Mailbox($T)      — for worker threads. Blocks using condition variable.
 - Loop_Mailbox($T) — for nbio event loops. Wakes loop using nbio.wake_up.
+
+This library is intrusive. The link node lives inside your struct.
+The mailbox does not allocate anything per message.
+Your struct must stay alive while it is in the mailbox.
 
 User struct contract:
 
