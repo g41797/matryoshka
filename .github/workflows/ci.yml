@@ -29,11 +29,11 @@ jobs:
         run: |
           if [ "${{ matrix.opt }}" = "none" ]; then
             echo "Running NONE optimization with DEBUG"
-            odin build . -no-entrypoint -vet -strict-style -o:none -debug
+            odin build . -vet -strict-style -o:none -debug
             odin test . -vet -strict-style -disallow-do -o:none -debug
           else
             echo "Running ${{ matrix.opt }} optimization without DEBUG"
-            odin build . -no-entrypoint -vet -strict-style -o:"${{ matrix.opt }}"
+            odin build . -vet -strict-style -o:"${{ matrix.opt }}"
             odin test . -vet -strict-style -disallow-do -o:"${{ matrix.opt }}"
           fi
 
