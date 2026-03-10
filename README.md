@@ -210,6 +210,13 @@ for node := list.pop_front(&remaining); node != nil; node = list.pop_front(&rema
 }
 ```
 
+## Best Practices
+
+1. **Ownership.** Once you send a message, don't touch it. It belongs to the mailbox until someone receives it.
+2. **Cleanup.** Use `close()` to stop. Undelivered messages are returned to you—it is now safe to free or reuse them. 
+3. **Threads.** Always wait for threads to finish (`thread.join`) before you free the mailbox itself.
+
+
 ---
 
 ## Learn more

@@ -174,3 +174,18 @@ nbio.wake_up(m.loop)
 
 - Use `Mailbox` for communication between worker threads.
 - Use `Loop_Mailbox` to send commands to the nbio event loop.
+
+---
+
+## Best Practices
+
+### 1. Ownership
+Once a message is sent, do not read or write to it. 
+The mailbox owns the reference while it is queued. 
+You only get ownership back when you `receive()` it or get it from `close()`.
+
+### 2. Shutdown
+1. Call `close()` to signal all threads to stop.
+2. `close()` returns all undelivered messages. You own these again and can safely free them.
+3. Wait for all threads to finish (`thread.join()`) before freeing the mailbox itself.
+

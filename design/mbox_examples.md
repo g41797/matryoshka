@@ -85,7 +85,7 @@ Note: for this pattern, `mb` is `mbox.Mailbox(Envelope)`.
 
 ---
 
-## 3. Graceful shutdown
+## 3. "Graceful" shutdown
 
 ```odin
 // Sender signals shutdown (capture remaining if drain is needed — see Pattern 8):

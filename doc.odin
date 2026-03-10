@@ -84,5 +84,11 @@ API Details:
 - interrupt(&mb): Sends a one-time signal to wake a waiting thread. 
   It returns false if already interrupted or closed. 
   The signal is automatically cleared as soon as a thread receives the .Interrupted error.
+
+Best Practices:
+
+1. Ownership: Once you send a message, don't touch it. It belongs to the mailbox until received.
+2. Cleanup: Use close() to stop. It returns all undelivered messages—it is now safe to free them.
+3. Threads: Always wait for threads to finish (thread.join) before you free the mailbox itself.
 */
 package mbox
