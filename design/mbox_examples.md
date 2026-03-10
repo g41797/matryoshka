@@ -224,6 +224,32 @@ remaining, _ := mbox.close(&mb)
 
 // 2. Wait for all threads that were using this mailbox to exit.
 
-// 3. Reinitialize via zero assignment — all fields reset correctly.
+//  step 3. Reinitialize via zero assignment — all fields reset correctly.
 mb = {}
 ```
+
+---
+
+## 9. Relay Race / Endless Game (Circular Passing)
+
+Pass a single message between multiple threads in a circle.
+Ownership moves from Runner 1 to 2, 2 to 3, and so on.
+
+```odin
+// Runner i:
+for {
+    baton, err := mbox.wait_receive(my_mb)
+    if err != .None { break }
+
+    // process baton...
+
+    mbox.send(next_mb, baton)
+}
+```
+
+This pattern is perfect for:
+- State machines where different threads handle different states.
+- High-speed pipelines with zero data copies.
+- Games where one "entity" is manipulated by many systems.
+
+See `examples/endless_game.odin` for the full implementation.

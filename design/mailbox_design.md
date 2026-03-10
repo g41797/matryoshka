@@ -9,6 +9,20 @@ Two mailbox types. They solve different problems.
 
 ---
 
+## Comparison with `core:sync/chan`
+
+Odin provides `core:sync/chan` for Go-style typed channels. `mbox` is a companion for specific technical needs.
+
+| Feature | `core:sync/chan` | `mbox` |
+|---|---|---|
+| Allocation per message | yes — copies the value | zero — intrusive link |
+| nbio integration | no | yes — `Loop_Mailbox` |
+| Receive timeout | no | yes |
+| Interrupt without close | no | yes — `interrupt()` (one-time signal) |
+| Message ownership | channel owns the copy | caller owns memory; mailbox owns reference while queued |
+
+---
+
 ## Internal storage
 
 Both types use `core:container/intrusive/list` internally.
@@ -67,8 +81,8 @@ A `list.Node` can only be in one list at a time.
 Do not send a message that is already queued somewhere else.
 If the message is in another intrusive structure, call `list.remove` first.
 
-While a message is in the mailbox, the mailbox owns the node.
-When `close()` returns, ownership returns to the caller via the returned `list.List`.
+While a message is in the mailbox, the mailbox owns the reference (the link).
+When `close()` returns, the reference is handed back to the caller via the returned `list.List`.
 
 ---
 
@@ -87,7 +101,7 @@ When `close()` returns, ownership returns to the caller via the returned `list.L
 ### API
 - `send(msg)` — adds message, signals one waiter.
 - `wait_receive(timeout)` — blocks until message arrives, timeout, or interrupt. Use `timeout=0` for non-blocking poll.
-- `interrupt()` — wakes one waiter with `.Interrupted`. Returns false if already interrupted or closed. Flag is self-clearing.
+- `interrupt()` — sends a one-time signal to wake one waiter with `.Interrupted`. Returns false if already interrupted or closed. Signal is automatically cleared on receipt.
 - `close()` — blocks new sends, wakes all waiters with `.Closed`. Returns `(list.List, bool)` — remaining messages and whether this was the first close.
 
 ### Internal send pattern
@@ -117,21 +131,21 @@ sync.cond_signal(&m.cond)   // wake next waiter if more messages remain
 - Many threads can send.
 - One receiver only — the nbio thread.
 - The nbio thread never blocks inside the mailbox.
-- It blocks only inside `nbio.tick()`.
-- When a sender adds the first message, it calls `nbio.wake_up` to interrupt the tick.
+- It blocks only inside `nbio.tick()` or its wrappers like `nbio.run()` and `nbio.run_until()`.
+- Synchronous OS calls like `nbio.open_sync()` also block.
+- Every time a sender adds a message, it calls `nbio.wake_up` to interrupt the tick.
 
 ### API
-- `send_to_loop(msg)` — adds message, calls `nbio.wake_up` if mailbox was empty.
+- `send_to_loop(msg)` — adds message, calls `nbio.wake_up`.
 - `try_receive_loop()` — returns one message. Never blocks. Call in a loop to drain.
 - `close_loop()` — blocks new sends, calls `nbio.wake_up` once. Returns `(list.List, bool)` — remaining messages and whether this was the first close.
-- `stats()` — approximate pending count. Not locked.
+- `stats()` — message count. Not locked.
 
 ### Internal send pattern
 ```odin
-was_empty := m.len == 0
 list.push_back(&m.list, &msg.node)
 m.len += 1
-if was_empty { nbio.wake_up(m.loop) }
+nbio.wake_up(m.loop)
 ```
 
 ---

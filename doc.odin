@@ -1,37 +1,50 @@
 /*
-Inter-thread mailbox library for Odin. Thread-safe. Zero-allocation.
+The endless inter-threaded game...
+
+Imagine a circle of friends playing catch. 
+One ball. Many hands. 
+The game is fast because nobody is stopping to make a new ball. 
+You just catch, play, and pass. 
+This is how your threads should work.
+
+---
+
+### 🤖 An AI's Perspective
+
+We asked the machine: "What do you think about mbox?"
+
+> "Place your bets. The game is on. Threads are the Players. mbox is the deck.
+> When you play a card, you let go. It's not yours anymore. It belongs to the game. 
+> A friend catches it, makes their move, and passes it on. 
+> No new cards, no new chips. Just flow."
+
+(Note: AI may make mistakes. Trust the human Dealer.)
+
+---
 
 Two mailbox types:
-- Mailbox($T)      — for worker threads. Blocks using condition variable.
-- Loop_Mailbox($T) — for nbio event loops. Wakes loop using nbio.wake_up.
+- Mailbox($T)      — for worker threads. Blocks the thread until a message arrives.
+- Loop_Mailbox($T) — for nbio loops. Wakes the loop. Never blocks the thread.
 
-This library is intrusive. The link node lives inside your struct.
-The mailbox does not allocate anything per message.
-Your struct must stay alive while it is in the mailbox.
+Normal queues wrap your data in a "node" they allocate.
+mbox is different. The node is already inside your struct. 
 
-User struct contract:
+- One place only: A message can only be in one mailbox at a time.
+- Clear ownership: You own the memory. The mailbox manages the link while it is queued.
+- close() returns any unprocessed messages to you.
 
-Your struct must have a field named "node" of type list.Node.
-The field name is fixed. It is not configurable.
+Your struct contract:
+- Your struct must have a field named "node" of type "list.Node".
+- The compiler checks this. Wrong struct = compile error.
 
 Example:
 
     import list "core:container/intrusive/list"
 
     My_Msg :: struct {
-        node: list.Node,   // required — field name must be "node"
+        node: list.Node,   // required
         data: int,
     }
-
-This contract is enforced at compile time.
-If your struct does not have a "node: list.Node" field,
-the compiler will give an error.
-
-One place only:
-A message can only be in one mailbox (or one list) at a time.
-Remove it from any other structure before sending.
-While a message is queued, the mailbox owns the node.
-close() returns any unprocessed messages to the caller.
 
 Example — worker thread mailbox:
 
@@ -46,7 +59,7 @@ Example — worker thread mailbox:
 
     // shutdown:
     remaining, was_open := mbox.close(&mb)
-    // drain remaining...
+    // remaining is a list.List of all messages that were still in the mailbox.
 
     // reuse (after all waiters have exited):
     mb = {}
@@ -59,11 +72,17 @@ Example — nbio loop mailbox:
     // sender thread:
     mbox.send_to_loop(&loop_mb, &msg)
 
-    // nbio loop — drain on wake:
+    // nbio loop:
     for {
         msg, ok := mbox.try_receive_loop(&loop_mb)
         if !ok { break }
         // process msg
     }
+
+API Details:
+
+- interrupt(&mb): Sends a one-time signal to wake a waiting thread. 
+  It returns false if already interrupted or closed. 
+  The signal is automatically cleared as soon as a thread receives the .Interrupted error.
 */
 package mbox

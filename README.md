@@ -1,26 +1,57 @@
-![](_logo/gold_mbox.png)
-
 # odin-mbox
+
+The endless inter-threaded game...
 
 [![CI](https://github.com/g41797/odin-mbox/actions/workflows/ci.yml/badge.svg)](https://github.com/g41797/odin-mbox/actions/workflows/ci.yml)
 
-Inter-thread communication for Odin. Intrusive. Thread-safe. Zero-allocation.
-
-Port of [mailbox](https://github.com/g41797/mailbox) (Zig). Used by [otofu](https://github.com/g41797/otofu).
 
 ---
 
-## A bit of history, a bit of theory
+### 🤖 An AI's Take
+I asked the machine: *"What do you think about mbox?"*
 
-Mailboxes are one of the fundamental parts of the [actor model originated in **1973**](https://en.wikipedia.org/wiki/Actor_model):
-> Through the mailbox mechanism, actors can decouple the reception of a message from its elaboration.
-> A mailbox is nothing more than the data structure (FIFO) that holds messages.
+> **"Place your bets. The game is on.**
+>
+> Stop thinking about 'data'. Think about the table. Your threads are the **Players**.
+> **mbox** is the deck, the chips, and the dice.
+>
+> When you play a card, you **let go**. It's not yours anymore. It belongs to the game.
+> A friend catches it, makes their move, and passes it on.
+> Nobody is stopping to print new cards or mint more chips.
+> The same deck keeps moving, the same dice keep rolling.
+>
+> You are the Dealer. You build the game.
+> Whether it's a Relay Race, a Game of Catch, or a High-Stakes Poker night—
+> just let it flow. Enjoy the play."
+>
+> _— (Disclaimer: AI may make errors. Always trust the human Dealer.)_
 
-I first encountered MailBox in the late 80s while working on a real-time system:
-> "A **mailbox** is an object that can be used for inter-task communication.
-> When task A wants to send an object to task B, task A must send the object to the mailbox,
-> and task B must visit the mailbox, where, if an object isn't there,
-> it has the option of *waiting for any desired length of time*..."
+---
+
+## Why use it?
+
+Odin has [channels](https://pkg.odin-lang.org/core/sync/chan/). Use them if they fit!
+
+**mbox** helps when you need:
+
+- **Zero allocations**: No copying. It links your struct directly.
+- **Recycling**: Use the same message over and over. No copying.
+- **nbio**: Wakes the `nbio` loop when a message arrives.
+- **Timeouts**: Stop waiting after a certain time.
+- **Interrupts**: Wake a thread without sending a message. One-time signal.
+- **Shutdown**: Close the mailbox and get back undelivered messages.
+
+### A bit of history
+
+Mailboxes are an old idea. They were part of the [actor model in **1973**](https://en.wikipedia.org/wiki/Actor_model):
+> Actors can separate receiving a message from doing the work.
+> A mailbox is just a queue (FIFO) for those messages.
+
+I first found them in the late 80s:
+> "A **mailbox** is for threads to talk.
+> Task A sends an object to Task B.
+> Task B goes to the mailbox to get it.
+> If nothing is there, Task B can wait."
 >
 > **iRMX 86™ NUCLEUS REFERENCE MANUAL** *Copyright © 1980, 1981 Intel Corporation.*
 
@@ -31,82 +62,38 @@ Since then, I have used it in:
 |    iRMX     |  *PL/M-86*  |
 |     AIX     |     *C*     |
 |   Windows   |  *C++/C#*   |
-|    Linux    |    *Go*     |
-|     L/W/M   |    *Zig*    |
+|    Linux    |    [Go](https://github.com/g41797/kissngoqueue)     |
+|     L/W/M   |    [Zig](https://github.com/g41797/mailbox)   |
 
 **Now it's Odin time!!!**
 
 ---
 
-## Why?
+## How it works (Intrusive)
 
-If your threads run in "Fire and Forget" mode, you don't need a mailbox.
+A normal queue allocates a "node" to hold your data.
 
-But in real multithreaded applications, threads communicate as members of a work team.
+**mbox** is different. The "node" lives inside your struct. This is why it's called "intrusive".
 
-Odin already has `core:sync/chan` — Go-style typed channels. If that is enough for you, use it.
-
-**mbox** is for when you need more:
-
-| | `core:sync/chan` | `mbox` |
-|---|---|---|
-| Allocation per message | yes — copies the value | zero — intrusive link |
-| nbio integration | no | yes — `Loop_Mailbox` |
-| Receive timeout | no | yes |
-| Interrupt without close | no | yes — `interrupt()` (self-clearing) |
-| Message ownership | channel owns the copy | caller owns; mailbox borrows node while queued |
-
-**Caller owns memory; mailbox borrows node while queued** means: `mbox` never copies your message. It links your struct directly into the queue. You own the memory from creation to destruction. The mailbox only borrows the `node` field while the message is queued. No allocator is ever touched inside mailbox operations. `close()` returns any unprocessed messages to the caller as a `list.List`.
-
-**One place only:** a `list.Node` can only be in one list at a time. Do not send a message that is already queued somewhere else. Remove it from any other intrusive structure before sending.
-
-**nbio integration** is the strongest reason to use `mbox`. `Loop_Mailbox` wakes an nbio event loop when a message arrives. `core:sync/chan` cannot do this.
-
----
-
-## What "intrusive" means
-
-A normal queue wraps your data in a node it allocates:
-
-```odin
-// The queue allocates one of these per message (behind the scenes):
-Queue_Node :: struct {
-    next: ^Queue_Node,
-    data: ^My_Msg,     // pointer to your data — two objects per message
-}
-```
-
-An intrusive queue does not allocate anything. The link lives inside your struct:
-
-```odin
-// YOUR struct contains the link:
-My_Msg :: struct {
-    node: list.Node,   // the link IS your struct — one object, zero allocation
-    data: int,
-}
-```
-
-The queue just connects the `node` fields that are already inside your structs.
-
-Because of this:
-- Zero allocations per message.
-- You own the memory. You decide the lifetime.
-- Your struct must stay alive while it is in the mailbox.
+- No hidden allocations.
+- **One place only**: A message can only be in one mailbox at a time.
+- **Clear ownership**: You own the memory, but the mailbox owns the reference (the link) while it is queued.
+- **Handover**: When you call `receive()` or `close()`, the mailbox hands the reference back to you.
 
 ### Your struct contract
 
-To use mbox your struct must have a field named `node` of type `list.Node`. The name is fixed.
+Your struct must have a field named `node` of type `list.Node`.
 
 ```odin
 import list "core:container/intrusive/list"
 
 My_Msg :: struct {
-    node: list.Node,  // required — name must be "node", type must be list.Node
+    node: list.Node,  // required
     data: int,
 }
 ```
 
-The compiler enforces this at compile time via `where` clause. Wrong struct = compile error.
+The compiler checks this for you. If the field is missing, it won't compile.
 
 ---
 
@@ -114,35 +101,71 @@ The compiler enforces this at compile time via `where` clause. Wrong struct = co
 
 | Type | For | How it waits |
 |---|---|---|
-| `Mailbox($T)` | Worker threads | `sync.Cond` — blocks the thread |
-| `Loop_Mailbox($T)` | nbio event loops | `nbio.wake_up` — wakes the loop |
+| `Mailbox($T)` | Worker threads | Blocks the thread until a message arrives. |
+| `Loop_Mailbox($T)` | nbio loops | Wakes the loop. Never blocks the thread. |
 
-Both are thread-safe. Both do zero allocations inside mailbox operations.
+Both are thread-safe. Both have zero allocations for sending or receiving.
 
-### Quick start — worker thread mailbox
+---
+
+## Examples
+
+| Example | Description |
+| :--- | :--- |
+| [Endless Game](examples/endless_game.odin) | 4 threads pass a single message in a circle. Millions of turns with zero overhead. |
+| [Negotiation](examples/negotiation.odin) | Request and reply between a worker thread and an `nbio` loop. |
+| [Life and Death](examples/lifecycle.odin) | Full flow: from allocation to cleanup. |
+| [Stress Test](examples/stress.odin) | Many threads sending thousands of messages to one receiver. |
+| [Interrupt](examples/interrupt.odin) | How to wake a waiting thread without sending a message. |
+| [Close](examples/close.odin) | Stop the game and get back all unprocessed messages. |
+
+---
+
+These are not finished "production" code.
+They are just small tips to show you the game...
+
+---
+
+## Quick start
+
+### Basic Send and Receive
 
 ```odin
-import mbox "path/to/odin-mbox"
-
 // sender thread:
 msg := My_Msg{data = 42}
 mbox.send(&mb, &msg)
 
-// receiver thread (blocks until message arrives):
-got, err := mbox.wait_receive(&mb)
+// receiver thread:
+got, err := mbox.wait_receive(&mb, 100 * time.Millisecond)
 ```
 
-### Quick start — nbio loop mailbox
+### Interrupt a Waiter
 
 ```odin
-// setup (once, on the loop thread):
-loop_mb: mbox.Loop_Mailbox(My_Msg)
-loop_mb.loop = nbio.current_thread_event_loop()
+// from any thread:
+mbox.interrupt(&mb) // waiter gets .Interrupted
+```
 
+### Close and Drain
+
+```odin
+// shutdown:
+remaining, _ := mbox.close(&mb) // all waiters get .Closed
+
+// get back undelivered messages:
+for node := list.pop_front(&remaining); node != nil; node = list.pop_front(&remaining) {
+    msg := container_of(node, My_Msg, "node")
+    // ... process or free
+}
+```
+
+### nbio loop mailbox
+
+```odin
 // sender thread:
 mbox.send_to_loop(&loop_mb, &msg)
 
-// nbio loop — drain on wake:
+// nbio loop:
 for {
     msg, ok := mbox.try_receive_loop(&loop_mb)
     if !ok { break }
@@ -152,61 +175,47 @@ for {
 
 ---
 
-## API
+## Lifecycle of a Message
 
-### `Mailbox($T)`
+This example shows the full lifecycle: allocation, interruption, and cleanup.
 
-| Proc | Returns | Description |
-|---|---|---|
-| `send(&mb, &msg)` | `bool` | Add message. Returns false if closed. |
-| `wait_receive(&mb, timeout=-1)` | `(^T, Mailbox_Error)` | Block until message, timeout, or interrupt. Use `timeout=0` for non-blocking poll. |
-| `interrupt(&mb)` | `bool` | Wake one waiter. Returns false if already interrupted or closed. Self-clearing. |
-| `close(&mb)` | `(list.List, bool)` | Block sends. Wake all waiters with `.Closed`. Return remaining messages. |
+```odin
+import mbox "path/to/odin-mbox"
+import list "core:container/intrusive/list"
 
-`Mailbox_Error` values: `None`, `Timeout`, `Closed`, `Interrupted`.
+mb: mbox.Mailbox(My_Msg)
 
-### `Loop_Mailbox($T)`
+// 1. Create a message.
+// You own the memory.
+m := new(My_Msg)
+m.data = 100
 
-| Proc | Returns | Description |
-|---|---|---|
-| `send_to_loop(&mb, &msg)` | `bool` | Add message, wake the loop. Returns false if closed. |
-| `try_receive_loop(&mb)` | `(^T, bool)` | Return message if available. Never blocks. |
-| `close_loop(&mb)` | `(list.List, bool)` | Block sends. Wake loop once. Return remaining messages. |
-| `stats(&mb)` | `int` | Approximate pending message count. |
+// 2. Interrupt the game.
+// Wakes the next waiter with .Interrupted.
+mbox.interrupt(&mb)
 
----
+// 3. Send the message.
+// The mailbox now owns the reference (the link).
+mbox.send(&mb, m)
 
-## Build and test
+// 4. Shutdown.
+// close() hands back all references to you.
+remaining, _ := mbox.close(&mb)
 
-```sh
-./build_and_test.sh
-```
-
-Runs 5 optimization levels: `none`, `minimal`, `size`, `speed`, `aggressive`.
-
-Each level builds the root lib, builds examples, runs tests, and runs doc checks.
-
----
-
-## Folder structure
-
-```
-odin-mbox/
-  mbox.odin          # Mailbox — worker thread mailbox
-  loop_mbox.odin     # Loop_Mailbox — nbio loop mailbox
-  doc.odin           # Package doc and usage examples
-  examples/          # Runnable examples (negotiation, stress)
-  tests/             # @test procs
-  design/            # Design docs
-
+// 5. Cleanup.
+// You must free anything the mailbox handed back.
+for node := list.pop_front(&remaining); node != nil; node = list.pop_front(&remaining) {
+    msg := container_of(node, My_Msg, "node")
+    free(msg)
+}
 ```
 
 ---
 
-## Design docs
+## Learn more
 
-- [mailbox_design.md](design/mailbox_design.md) — architecture notes
-- [mbox_examples.md](design/mbox_examples.md) — usage patterns
+- [design/mailbox_design.md](design/mailbox_design.md) — architecture details
+- [design/mbox_examples.md](design/mbox_examples.md) — common usage patterns
 
 ---
 

@@ -19,6 +19,26 @@ test_stress :: proc(t: ^testing.T) {
 	testing.expect(t, examples.stress_example(), "stress_example failed")
 }
 
+@(test)
+test_endless_game :: proc(t: ^testing.T) {
+	testing.expect(t, examples.endless_game_example(), "endless_game_example failed")
+}
+
+@(test)
+test_example_interrupt :: proc(t: ^testing.T) {
+	testing.expect(t, examples.interrupt_example(), "interrupt_example failed")
+}
+
+@(test)
+test_example_close :: proc(t: ^testing.T) {
+	testing.expect(t, examples.close_example(), "close_example failed")
+}
+
+@(test)
+test_example_lifecycle :: proc(t: ^testing.T) {
+	testing.expect(t, examples.lifecycle_example(), "lifecycle_example failed")
+}
+
 // --- Mailbox edge-case tests ---
 
 // Msg is the local test message type.

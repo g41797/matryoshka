@@ -1,0 +1,21 @@
+awesome Odin
+    https://github.com/jakubtomsu/awesome-odin
+
+
+Go idiomatic synchronization queue
+    https://github.com/g41797/kissngoqueue
+
+
+Zig Mailbox
+    https://github.com/g41797/mailbox
+
+Intrusive doubly-linked list
+    https://pkg.odin-lang.org/core/container/intrusive/list/
+
+
+Pool Allocators
+    https://www.gingerbill.org/article/2019/02/16/memory-allocation-strategies-004/
+
+
+context—Odin’s Most Misunderstood Feature
+    https://www.gingerbill.org/article/2025/12/15/odins-most-misunderstood-feature-context/

@@ -27,7 +27,7 @@ Loop_Mailbox :: struct($T: typeid) {
 	closed: bool,
 }
 
-// send_to_loop adds msg to the mailbox and wakes the nbio loop if needed.
+// send_to_loop adds msg to the mailbox and wakes the nbio loop.
 // Returns false if the mailbox is closed.
 send_to_loop :: proc(
 	m: ^Loop_Mailbox($T),
@@ -40,12 +40,9 @@ send_to_loop :: proc(
 	if m.closed {
 		return false
 	}
-	was_empty := m.len == 0
 	list.push_back(&m.list, &msg.node)
 	m.len += 1
-	if was_empty {
-		nbio.wake_up(m.loop)
-	}
+	nbio.wake_up(m.loop)
 	return true
 }
 
