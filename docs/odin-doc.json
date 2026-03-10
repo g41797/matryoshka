@@ -2,10 +2,10 @@
     "hide_core": true,
     "hide_base": true,
     "collections": {
-        "mbox": {
-            "name": "mbox",
+        "odin-mbox": {
+            "name": "odin-mbox",
             "source_url": "https://github.com/g41797/odin-mbox/blob/main",
-            "base_url": "/mbox",
+            "base_url": "/odin-mbox",
             "root_path": "PROJECT_ROOT",
             "license": {
                 "text": "MIT",

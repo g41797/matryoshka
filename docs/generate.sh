@@ -25,8 +25,8 @@ cd build
 find . -name "index.html" -exec sed -i '/<h2 id="pkg-generation-information">/,/<p>Generated with .*<\/p>/d' {} +
 find . -name "index.html" -exec sed -i '/<li><a href="#pkg-generation-information">/d' {} +
 
-# Fix sidebar link to point to /mbox instead of root
-sed -i 's|href="/mbox"|href="/mbox/"|g' index.html
+# Ensure all links to the package documentation include the trailing slash
+find . -name "index.html" -exec sed -i 's|href="/odin-mbox"|href="/odin-mbox/"|g' {} +
 
 cd ..
 
