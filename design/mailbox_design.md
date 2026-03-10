@@ -189,3 +189,7 @@ You only get ownership back when you `receive()` it or get it from `close()`.
 2. `close()` returns all undelivered messages. You own these again and can safely free them.
 3. Wait for all threads to finish (`thread.join()`) before freeing the mailbox itself.
 
+### 3. Threads
+Always wait for all threads to finish (`thread.join`) before you free the mailbox itself.
+The mailbox must stay alive as long as any thread can still access it.
+

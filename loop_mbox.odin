@@ -36,12 +36,13 @@ send_to_loop :: proc(
 	intrinsics.type_field_type(T, "node") ==
 	list.Node {
 	sync.mutex_lock(&m.mutex)
-	defer sync.mutex_unlock(&m.mutex)
 	if m.closed {
+		sync.mutex_unlock(&m.mutex)
 		return false
 	}
 	list.push_back(&m.list, &msg.node)
 	m.len += 1
+	sync.mutex_unlock(&m.mutex)
 	nbio.wake_up(m.loop)
 	return true
 }
