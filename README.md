@@ -232,9 +232,9 @@ MIT
 
 ---
 
-## Last warning
+## Forewarned is forearmed
 
-First rule of multithreading:
+Remember the *First Rule of Multithreading*:
 > **If you can do without multithreading — do without.**
 
 *Powered by* [OLS](https://github.com/DanielGavin/ols) + [Odin](https://odin-lang.org/)

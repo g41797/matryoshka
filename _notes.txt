@@ -9,6 +9,7 @@ Go idiomatic synchronization queue
 Zig Mailbox
     https://github.com/g41797/mailbox
 
+
 Intrusive doubly-linked list
     https://pkg.odin-lang.org/core/container/intrusive/list/
 
@@ -19,3 +20,7 @@ Pool Allocators
 
 context—Odin’s Most Misunderstood Feature
     https://www.gingerbill.org/article/2025/12/15/odins-most-misunderstood-feature-context/
+
+
+Odin build doc pages magic
+    https://github.com/laytan/odin-tree-sitter

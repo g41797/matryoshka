@@ -23,3 +23,11 @@ ols.json
 # Local Session Data
 mailbox_init.md
 design/STATUS.md
+
+# Documentation tools
+/tools/tmp_pkg_repo
+/docs/build/
+tools/libcmark.so
+tools/odin-doc
+tools/doc_config.json
+tools/odin_doc_to_html.py
