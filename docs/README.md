@@ -4,7 +4,7 @@ The endless inter-threaded game...
 
 ---
 
-### [AI] An AI's Take
+### An AI's Take
 I asked the machine: *"What do you think about mbox?"*
 
 > **"Place your bets. The game is on.**

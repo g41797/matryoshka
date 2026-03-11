@@ -2,7 +2,7 @@
     "hide_core": true,
     "hide_base": true,
     "collections": {
-        "odin-mbox": {
+        "mbox": {
             "name": "odin-mbox",
             "source_url": "https://github.com/g41797/odin-mbox/blob/main",
             "base_url": "/odin-mbox",

@@ -2,6 +2,10 @@
 
 set -ex
 
+# Ensure we use UTF-8 for sed and other tools
+export LC_ALL=C.UTF-8
+export LANG=C.UTF-8
+
 # Get absolute path to project root
 ROOT_DIR=$(realpath "$(dirname "$0")/..")
 
@@ -25,14 +29,20 @@ cd build
 find . -name "index.html" -exec sed -i '/<h2 id="pkg-generation-information">/,/<p>Generated with .*<\/p>/d' {} +
 find . -name "index.html" -exec sed -i '/<li><a href="#pkg-generation-information">/d' {} +
 
-# Ensure links are relative for GitHub Pages compatibility
-# In the root index.html, use ./odin-mbox/
-sed -i 's|href="/odin-mbox|href="./odin-mbox|g' index.html
+# Post-process: Make all links and assets relative
+# 1. Root index.html
+sed -i 's|href="/|href="./|g' index.html
+sed -i 's|src="/|src="./|g' index.html
+# Fix the library link specifically (it should point to its own subdirectory)
 sed -i 's|href="./odin-mbox"|href="./odin-mbox/"|g' index.html
 
-# In subdirectories, use ../odin-mbox/ (if any other index.html files exist)
-find . -mindepth 2 -name "index.html" -exec sed -i 's|href="/odin-mbox|href="../odin-mbox|g' {} +
-find . -mindepth 2 -name "index.html" -exec sed -i 's|href="../odin-mbox"|href="../odin-mbox/"|g' {} +
+# 2. Package index.html (in odin-mbox/ directory)
+if [ -d "odin-mbox" ]; then
+    sed -i 's|href="/|href="../|g' odin-mbox/index.html
+    sed -i 's|src="/|src="../|g' odin-mbox/index.html
+    # Fix self-links and navigation in the package page
+    sed -i 's|href="\.\./odin-mbox"|href="../odin-mbox/"|g' odin-mbox/index.html
+fi
 
 cd ..
 
