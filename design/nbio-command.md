@@ -23,7 +23,7 @@
 - It pushes the finished operation into a queue.
 - This handles the **Inbound** results (I/O to you).
 - Our proposal handles the **Outbound** commands (You to I/O).
-- Together, they make a perfect loop.
+- Together, they form a complete loop.
 
 ---
 

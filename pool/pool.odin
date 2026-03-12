@@ -193,7 +193,7 @@ put :: proc(
 
 // destroy frees all messages in the free-list and marks the pool Closed.
 // After destroy: get returns (nil, .Closed), put frees own messages.
-// Idempotent — safe to call more than once.
+// Safe to call more than once.
 // Call after all threads have stopped using the pool.
 destroy :: proc(
 	p: ^Pool($T),

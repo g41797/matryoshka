@@ -6,11 +6,11 @@ import list "core:container/intrusive/list"
 import "core:sync"
 import "core:thread"
 
-// stress_example shows high-throughput multi-producer single-consumer messaging with pool recycling.
+// stress_example shows many producers, one consumer, with pool recycling.
 //
 // - 10 producers each send 1,000 messages (10,000 total).
 // - 1 consumer receives all messages and returns each to the pool.
-// - Pool is pre-allocated with N messages. No heap allocations during the run.
+// - Pool is pre-allocated with N messages. Messages come from the pool. No new allocations while running.
 // - After the consumer counts all N, main closes and destroys the pool.
 stress_example :: proc() -> bool {
 	N :: 10_000

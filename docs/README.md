@@ -27,7 +27,7 @@ Odin has [channels](https://pkg.odin-lang.org/core/sync/chan/). Use them if they
 **mbox** helps when you need:
 
 - **Zero copies**: No data copying. It links your struct directly.
-- **Recycling**: Use a pool to reuse messages with zero allocations per send.
+- **Recycling**: Use a pool to reuse messages. No new allocations per send.
 - **nbio**: Wakes the `nbio` loop when a message arrives.
 - **Timeouts**: Stop waiting after a certain time.
 - **Interrupts**: Wake a thread without sending a message. One-time signal.

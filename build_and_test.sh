@@ -47,11 +47,18 @@ for opt in "${OPTS[@]}"; do
         odin test ./tests/ -vet -strict-style -disallow-do -o:"${opt}"
     fi
 
-    echo "  test pool/..."
+    echo "  build pool_tests/..."
     if [ "${opt}" = "none" ]; then
-        odin test ./pool/ -vet -strict-style -disallow-do -o:none -debug
+        odin build ./pool_tests/ -build-mode:lib -vet -strict-style -o:none -debug
     else
-        odin test ./pool/ -vet -strict-style -disallow-do -o:"${opt}"
+        odin build ./pool_tests/ -build-mode:lib -vet -strict-style -o:"${opt}"
+    fi
+
+    echo "  test pool_tests/..."
+    if [ "${opt}" = "none" ]; then
+        odin test ./pool_tests/ -vet -strict-style -disallow-do -o:none -debug
+    else
+        odin test ./pool_tests/ -vet -strict-style -disallow-do -o:"${opt}"
     fi
 
     echo "${GREEN}  pass: ${opt}${NC}"
@@ -61,6 +68,7 @@ echo
 echo "${BLUE}--- doc smoke test ---${NC}"
 odin doc ./
 odin doc ./pool/
+odin doc ./pool_tests/
 odin doc ./examples/
 odin doc ./tests/
 echo "${GREEN}  docs OK${NC}"

@@ -53,14 +53,25 @@ for %%o in (%OPTS%) do (
         exit /b !errorlevel!
     )
 
-    echo   test pool/...
+    echo   build pool_tests/...
     if "%%o"=="none" (
-        odin test ./pool/ -vet -strict-style -disallow-do -o:none -debug
+        odin build ./pool_tests/ -build-mode:lib -vet -strict-style -o:none -debug
     ) else (
-        odin test ./pool/ -vet -strict-style -disallow-do -o:%%o
+        odin build ./pool_tests/ -build-mode:lib -vet -strict-style -o:%%o
     )
     if !errorlevel! neq 0 (
-        echo [ERROR] pool tests failed for -o:%%o
+        echo [ERROR] pool_tests build failed for -o:%%o
+        exit /b !errorlevel!
+    )
+
+    echo   test pool_tests/...
+    if "%%o"=="none" (
+        odin test ./pool_tests/ -vet -strict-style -disallow-do -o:none -debug
+    ) else (
+        odin test ./pool_tests/ -vet -strict-style -disallow-do -o:%%o
+    )
+    if !errorlevel! neq 0 (
+        echo [ERROR] pool_tests tests failed for -o:%%o
         exit /b !errorlevel!
     )
 
@@ -73,6 +84,8 @@ odin doc ./
 if !errorlevel! neq 0 ( echo [ERROR] doc failed for root & exit /b !errorlevel! )
 odin doc ./pool/
 if !errorlevel! neq 0 ( echo [ERROR] doc failed for pool & exit /b !errorlevel! )
+odin doc ./pool_tests/
+if !errorlevel! neq 0 ( echo [ERROR] doc failed for pool_tests & exit /b !errorlevel! )
 odin doc ./examples/
 if !errorlevel! neq 0 ( echo [ERROR] doc failed for examples & exit /b !errorlevel! )
 odin doc ./tests/

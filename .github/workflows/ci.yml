@@ -62,13 +62,22 @@ jobs:
             odin test ./tests/ -vet -strict-style -disallow-do -o:${{ matrix.opt }}
           fi
 
-      - name: Test pool
+      - name: Build pool_tests
         shell: bash
         run: |
           if [ "${{ matrix.opt }}" = "none" ]; then
-            odin test ./pool/ -vet -strict-style -disallow-do -o:none -debug
+            odin build ./pool_tests/ -build-mode:lib -vet -strict-style -o:none -debug
           else
-            odin test ./pool/ -vet -strict-style -disallow-do -o:${{ matrix.opt }}
+            odin build ./pool_tests/ -build-mode:lib -vet -strict-style -o:${{ matrix.opt }}
+          fi
+
+      - name: Test pool_tests
+        shell: bash
+        run: |
+          if [ "${{ matrix.opt }}" = "none" ]; then
+            odin test ./pool_tests/ -vet -strict-style -disallow-do -o:none -debug
+          else
+            odin test ./pool_tests/ -vet -strict-style -disallow-do -o:${{ matrix.opt }}
           fi
 
       - name: Doc smoke test
@@ -76,6 +85,7 @@ jobs:
         run: |
           odin doc ./
           odin doc ./pool/
+          odin doc ./pool_tests/
           odin doc ./examples/
           odin doc ./tests/
 
@@ -84,10 +94,11 @@ jobs:
         shell: bash
         run: |
           mkdir -p doc-out
-          odin doc ./          > doc-out/mbox.txt
-          odin doc ./pool/     > doc-out/pool.txt
-          odin doc ./examples/ > doc-out/examples.txt
-          odin doc ./tests/    > doc-out/tests.txt
+          odin doc ./            > doc-out/mbox.txt
+          odin doc ./pool/       > doc-out/pool.txt
+          odin doc ./pool_tests/ > doc-out/pool_tests.txt
+          odin doc ./examples/   > doc-out/examples.txt
+          odin doc ./tests/      > doc-out/tests.txt
 
       - name: Upload doc artifact
         if: matrix.os == 'ubuntu-latest' && matrix.opt == 'none'

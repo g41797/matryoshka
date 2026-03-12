@@ -1,7 +1,7 @@
 /*
 Package pool is a thread-safe free-list for reusable message objects.
 
-Use it with mbox when you need high-throughput recycling.
+Use it with mbox when you send many messages.
 
 How it works:
 - Call init to set up the pool and pre-allocate messages.

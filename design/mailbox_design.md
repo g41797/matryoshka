@@ -200,7 +200,7 @@ The stack frame can be freed before the receiving thread reads the message.
 Three ownership patterns:
 
 1. **Heap**: `new` to allocate, `free` after receive. Simple. Good for low-frequency use.
-2. **Pool**: `pool.get` / `pool.put`. High-throughput recycling. Zero allocations during the run.
+2. **Pool**: `pool.get` / `pool.put`. Reuse messages. No new allocations during the run.
 3. **MASTER**: one struct owns both pool and mailbox. One shutdown call handles everything.
 
 "Zero copies" means mbox does not copy message data. It does not mean zero allocations.
