@@ -104,6 +104,9 @@ Both are thread-safe. Both have zero allocations for sending or receiving.
 | [Interrupt](examples/interrupt.odin) | How to wake a waiting thread without sending a message. |
 | [Close](examples/close.odin) | Stop the game and get back all unprocessed messages. |
 | [Master](examples/master.odin) | Pool + mailbox owned by one struct. Coordinated shutdown. |
+| [Pool Wait](examples/pool_wait.odin) | N players share M tokens (M < N); players wait for a recycled token. |
+
+See the [Pool section](#pool) below for message recycling.
 
 ---
 
@@ -214,6 +217,7 @@ To reuse messages, use the `pool` package.
 ```odin
 import pool_pkg "path/to/odin-mbox/pool"
 import "core:mem"
+import "core:time"
 
 // Your struct — both fields required when using pool.
 My_Msg :: struct {
@@ -229,9 +233,13 @@ if ok, _ := pool_pkg.init(&p, initial_msgs = 64, max_msgs = 256, reset = nil); !
 }
 
 // Sender: get from pool, fill, send.
+// .Always (default): allocates new if pool empty.
 msg, _ := pool_pkg.get(&p)
 msg.data = 42
 mbox.send(&mb, msg)
+
+// .Pool_Only + timeout: wait up to 100 ms for a recycled message.
+msg2, status := pool_pkg.get(&p, .Pool_Only, 100 * time.Millisecond)
 
 // Receiver: receive, use, return to pool.
 got, err := mbox.wait_receive(&mb)

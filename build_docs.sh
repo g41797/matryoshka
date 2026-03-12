@@ -18,5 +18,7 @@ echo "--- Generating HTML ---"
 "$ROOT_DIR/docs/generate.sh"
 
 # 3. Start local preview
+# Opens http://localhost:8000 — Source File links point to GitHub and require
+# the changes to be pushed before they resolve. Press Ctrl+C to stop.
 echo "--- Starting Preview ---"
 "$ROOT_DIR/tools/preview_docs.sh"

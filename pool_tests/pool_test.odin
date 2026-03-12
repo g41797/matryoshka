@@ -2,7 +2,10 @@ package pool_tests
 
 import list "core:container/intrusive/list"
 import "core:mem"
+import "core:sync"
 import "core:testing"
+import "core:thread"
+import "core:time"
 
 import pool_pkg "../pool"
 
@@ -393,4 +396,106 @@ test_pool_reset_on_put :: proc(t: ^testing.T) {
 		testing.expect(t, recycled.data & 2 != 0, "put-reset bit should be set (bit 1)")
 		free(recycled, recycled.allocator)
 	}
+}
+
+// ----------------------------------------------------------------------------
+// Timeout tests
+// ----------------------------------------------------------------------------
+
+@(test)
+test_pool_get_timeout_zero :: proc(t: ^testing.T) {
+	p: pool_pkg.Pool(Test_Msg)
+	pool_pkg.init(&p, reset = nil)
+	defer pool_pkg.destroy(&p)
+
+	// Empty pool, .Pool_Only, timeout=0 — must return immediately with .Pool_Empty.
+	msg, status := pool_pkg.get(&p, .Pool_Only, 0)
+	testing.expect(t, msg == nil, "msg should be nil")
+	testing.expect(t, status == .Pool_Empty, "status should be .Pool_Empty")
+}
+
+@(test)
+test_pool_get_timeout_elapsed :: proc(t: ^testing.T) {
+	p: pool_pkg.Pool(Test_Msg)
+	pool_pkg.init(&p, reset = nil)
+	defer pool_pkg.destroy(&p)
+
+	// Empty pool, .Pool_Only, short timeout — nobody puts, should expire with .Pool_Empty.
+	msg, status := pool_pkg.get(&p, .Pool_Only, time.Millisecond)
+	testing.expect(t, msg == nil, "msg should be nil after timeout")
+	testing.expect(t, status == .Pool_Empty, "status should be .Pool_Empty after timeout")
+}
+
+// _put_wakes_ctx holds shared state for test_pool_get_timeout_put_wakes.
+_Put_Wakes_Ctx :: struct {
+	pool:  ^pool_pkg.Pool(Test_Msg),
+	msg:   ^Test_Msg,
+	ready: sync.Sema,
+}
+
+@(test)
+test_pool_get_timeout_put_wakes :: proc(t: ^testing.T) {
+	p: pool_pkg.Pool(Test_Msg)
+	pool_pkg.init(&p, reset = nil)
+	defer pool_pkg.destroy(&p)
+
+	// Pre-allocate a message to put back from the second thread.
+	msg, _ := pool_pkg.get(&p)
+	testing.expect(t, msg != nil, "initial get should return non-nil")
+	if msg == nil {
+		return
+	}
+
+	ctx := _Put_Wakes_Ctx{pool = &p, msg = msg}
+
+	th := thread.create_and_start_with_data(&ctx, proc(data: rawptr) {
+		c := (^_Put_Wakes_Ctx)(data)
+		// Signal the waiter that we're ready, then put the message back.
+		sync.sema_post(&c.ready)
+		time.sleep(5 * time.Millisecond)
+		pool_pkg.put(c.pool, c.msg)
+	})
+
+	// Wait until the thread is running, then block on get with a long timeout.
+	sync.sema_wait(&ctx.ready)
+	got, status := pool_pkg.get(&p, .Pool_Only, time.Second)
+	thread.join(th)
+	thread.destroy(th)
+
+	testing.expect(t, got != nil, "get should return non-nil after put wakes it")
+	testing.expect(t, status == .Ok, "status should be .Ok")
+	if got != nil {
+		free(got, got.allocator)
+	}
+}
+
+// _destroy_wakes_ctx holds shared state for test_pool_get_timeout_destroy_wakes.
+_Destroy_Wakes_Ctx :: struct {
+	pool:  ^pool_pkg.Pool(Test_Msg),
+	ready: sync.Sema,
+}
+
+@(test)
+test_pool_get_timeout_destroy_wakes :: proc(t: ^testing.T) {
+	p: pool_pkg.Pool(Test_Msg)
+	pool_pkg.init(&p, reset = nil)
+
+	ctx := _Destroy_Wakes_Ctx{pool = &p}
+
+	th := thread.create_and_start_with_data(&ctx, proc(data: rawptr) {
+		c := (^_Destroy_Wakes_Ctx)(data)
+		// Signal the waiter that we're running, then destroy the pool.
+		sync.sema_post(&c.ready)
+		time.sleep(5 * time.Millisecond)
+		pool_pkg.destroy(c.pool)
+	})
+
+	// Wait until the thread is running, then block on get with infinite timeout.
+	sync.sema_wait(&ctx.ready)
+	got, status := pool_pkg.get(&p, .Pool_Only, -1)
+	thread.join(th)
+	thread.destroy(th)
+
+	testing.expect(t, got == nil, "get should return nil when pool is destroyed")
+	testing.expect(t, status == .Closed, "status should be .Closed")
 }

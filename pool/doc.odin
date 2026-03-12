@@ -29,6 +29,11 @@ Your struct must have two fields required by the pool where clause:
 Status returns:
 - init returns (bool, Pool_Status): (true, .Ok) on success; (false, .Out_Of_Memory) on pre-alloc failure.
 - get returns (^T, Pool_Status): .Ok, .Pool_Empty, .Out_Of_Memory, or .Closed.
+  With .Pool_Only strategy and timeout parameter:
+  - timeout==0 (default): return immediately if empty (.Pool_Empty). Non-blocking.
+  - timeout<0: wait forever until put or destroy.
+  - timeout>0: wait up to that duration; returns (nil, .Pool_Empty) on expiry.
+  - Returns (nil, .Closed) if pool is destroyed while waiting.
 - put returns ^T: nil if the message was recycled or freed; the original pointer if it was foreign
   (msg.allocator != pool allocator — caller must free it).
 

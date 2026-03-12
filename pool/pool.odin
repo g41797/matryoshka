@@ -7,8 +7,9 @@ import "base:intrinsics"
 import list "core:container/intrusive/list"
 import "core:mem"
 import "core:sync"
+import "core:time"
 
-// _PoolNode, _PoolMutex, _PoolAllocator, _PoolEvent ensure imports are used — required by -vet for generic code.
+// _PoolNode, _PoolMutex, _PoolAllocator, _PoolEvent, _PoolDuration ensure imports are used — required by -vet for generic code.
 @(private)
 _PoolNode :: list.Node
 @(private)
@@ -17,6 +18,8 @@ _PoolMutex :: sync.Mutex
 _PoolAllocator :: mem.Allocator
 @(private)
 _PoolEvent :: Pool_Event
+@(private)
+_PoolDuration :: time.Duration
 
 // Pool_State is the internal lifecycle of a pool.
 Pool_State :: enum {
@@ -52,6 +55,7 @@ Allocation_Strategy :: enum {
 Pool :: struct($T: typeid) {
 	allocator: mem.Allocator,
 	mutex:     sync.Mutex,
+	cond:      sync.Cond,                    // wakes waiting get(.Pool_Only) calls
 	list:      list.List,
 	curr_msgs: int,
 	max_msgs:  int,                          // 0 = unlimited
@@ -102,13 +106,16 @@ init :: proc(
 }
 
 // get returns a message from the free-list.
-// .Always (default): allocates a new one if the pool is empty.
-// .Pool_Only: returns (nil, .Pool_Empty) if the pool is empty.
-// Returns (nil, .Closed) if the pool state is not Active.
+// .Always (default): allocates a new one if the pool is empty. timeout is ignored.
+// .Pool_Only + timeout==0: returns (nil, .Pool_Empty) immediately if empty (default behavior).
+// .Pool_Only + timeout<0: waits forever until put or destroy.
+// .Pool_Only + timeout>0: waits up to that duration; returns (nil, .Pool_Empty) on expiry.
+// Returns (nil, .Closed) if the pool state is not Active (including destroy while waiting).
 // Sets msg.allocator on every returned message. Calls reset(.Get) only for recycled messages.
 get :: proc(
 	p: ^Pool($T),
 	strategy := Allocation_Strategy.Always,
+	timeout: time.Duration = 0,
 ) -> (^T, Pool_Status) where intrinsics.type_has_field(T, "node"),
 	intrinsics.type_field_type(T, "node") == list.Node,
 	intrinsics.type_has_field(T, "allocator"),
@@ -121,6 +128,36 @@ get :: proc(
 	}
 
 	raw := list.pop_front(&p.list)
+	if raw == nil && strategy == .Pool_Only {
+		if timeout == 0 {
+			sync.mutex_unlock(&p.mutex)
+			return nil, .Pool_Empty
+		}
+		// Wait loop: block until a message is available, pool is closed, or timeout expires.
+		for p.list.head == nil {
+			if p.state != .Active {
+				sync.mutex_unlock(&p.mutex)
+				return nil, .Closed
+			}
+			ok: bool
+			if timeout < 0 {
+				sync.cond_wait(&p.cond, &p.mutex)
+				ok = true
+			} else {
+				ok = sync.cond_wait_with_timeout(&p.cond, &p.mutex, timeout)
+			}
+			if p.state != .Active {
+				sync.mutex_unlock(&p.mutex)
+				return nil, .Closed
+			}
+			if !ok {
+				sync.mutex_unlock(&p.mutex)
+				return nil, .Pool_Empty // timeout expired
+			}
+		}
+		raw = list.pop_front(&p.list)
+	}
+
 	if raw != nil {
 		p.curr_msgs -= 1
 		alloc := p.allocator
@@ -134,12 +171,7 @@ get :: proc(
 		return msg, .Ok
 	}
 
-	if strategy == .Pool_Only {
-		sync.mutex_unlock(&p.mutex)
-		return nil, .Pool_Empty
-	}
-
-	// Fresh allocation — do not call reset.
+	// strategy == .Always and pool was empty: fresh allocation — do not call reset.
 	alloc := p.allocator
 	sync.mutex_unlock(&p.mutex)
 
@@ -187,6 +219,7 @@ put :: proc(
 	msg.node = {}
 	list.push_back(&p.list, &msg.node)
 	p.curr_msgs += 1
+	sync.cond_signal(&p.cond) // wake one waiting get(.Pool_Only)
 	sync.mutex_unlock(&p.mutex)
 	return nil
 }
@@ -220,5 +253,6 @@ destroy :: proc(
 		p.curr_msgs -= 1
 		free(msg, alloc)
 	}
+	sync.cond_broadcast(&p.cond) // wake all waiting get(.Pool_Only) calls
 	sync.mutex_unlock(&p.mutex)
 }

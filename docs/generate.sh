@@ -35,14 +35,28 @@ sed -i 's|href="/|href="./|g' index.html
 sed -i 's|src="/|src="./|g' index.html
 # Fix the library link specifically (it should point to its own subdirectory)
 sed -i 's|href="./odin-mbox"|href="./odin-mbox/"|g' index.html
+# Fix the blank root package link text
+sed -i 's|<a href="./odin-mbox/"></a>|<a href="./odin-mbox/">mbox</a>|g' index.html
 
-# 2. Package index.html (in odin-mbox/ directory)
+# 2. Collection home index.html (in odin-mbox/ directory — depth 1)
 if [ -d "odin-mbox" ]; then
     sed -i 's|href="/|href="../|g' odin-mbox/index.html
     sed -i 's|src="/|src="../|g' odin-mbox/index.html
     # Fix self-links and navigation in the package page
     sed -i 's|href="\.\./odin-mbox"|href="../odin-mbox/"|g' odin-mbox/index.html
+    # Fix the blank root package link text
+    sed -i 's|<a href="../odin-mbox/"></a>|<a href="../odin-mbox/">mbox</a>|g' odin-mbox/index.html
 fi
+
+# 3. Sub-package index.html files (in odin-mbox/*/ directory — depth 2)
+for subdir in odin-mbox/*/; do
+    if [ -f "${subdir}index.html" ]; then
+        sed -i 's|href="/|href="../../|g' "${subdir}index.html"
+        sed -i 's|src="/|src="../../|g' "${subdir}index.html"
+        # Fix the blank root package link text
+        sed -i 's|<a href="../../odin-mbox/"></a>|<a href="../../odin-mbox/">mbox</a>|g' "${subdir}index.html"
+    fi
+done
 
 cd ..
 

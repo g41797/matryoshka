@@ -45,6 +45,11 @@ test_master_example :: proc(t: ^testing.T) {
 	testing.expect(t, examples.master_example(), "master_example failed")
 }
 
+@(test)
+test_pool_wait :: proc(t: ^testing.T) {
+	testing.expect(t, examples.pool_wait_example(), "pool_wait_example failed")
+}
+
 // --- Mailbox edge-case tests ---
 
 // Msg is the local test message type.
