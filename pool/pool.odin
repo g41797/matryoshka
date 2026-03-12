@@ -30,10 +30,10 @@ Pool_State :: enum {
 
 // Pool_Status is returned by init and get.
 Pool_Status :: enum {
-	Ok,            // success
-	Pool_Empty,    // free-list empty, strategy = .Pool_Only
+	Ok, // success
+	Pool_Empty, // free-list empty, strategy = .Pool_Only
 	Out_Of_Memory, // allocator returned nil
-	Closed,        // pool is Closed or Uninit
+	Closed, // pool is Closed or Uninit
 }
 
 // Pool_Event tells the reset proc why it was called.
@@ -45,7 +45,7 @@ Pool_Event :: enum {
 // Allocation_Strategy controls get() behavior when the pool is empty.
 Allocation_Strategy :: enum {
 	Pool_Only, // return nil if pool is empty
-	Always,    // allocate new if pool is empty (default)
+	Always, // allocate new if pool is empty (default)
 }
 
 // Pool is a thread-safe free-list for reusable message objects.
@@ -55,11 +55,11 @@ Allocation_Strategy :: enum {
 Pool :: struct($T: typeid) {
 	allocator: mem.Allocator,
 	mutex:     sync.Mutex,
-	cond:      sync.Cond,                    // wakes waiting get(.Pool_Only) calls
+	cond:      sync.Cond, // wakes waiting get(.Pool_Only) calls
 	list:      list.List,
 	curr_msgs: int,
-	max_msgs:  int,                          // 0 = unlimited
-	state:     Pool_State,                   // replaces closed: bool
+	max_msgs:  int, // 0 = unlimited
+	state:     Pool_State, // replaces closed: bool
 	reset:     proc(msg: ^T, e: Pool_Event), // optional, called outside mutex
 }
 
@@ -72,12 +72,17 @@ init :: proc(
 	p: ^Pool($T),
 	initial_msgs := 0,
 	max_msgs := 0,
-	reset: proc(^T, Pool_Event),
+	reset: proc(_: ^T, _: Pool_Event),
 	allocator := context.allocator,
-) -> (bool, Pool_Status) where intrinsics.type_has_field(T, "node"),
-	intrinsics.type_field_type(T, "node") == list.Node,
+) -> (
+	bool,
+	Pool_Status,
+) where intrinsics.type_has_field(T, "node"),
+	intrinsics.type_field_type(T, "node") ==
+	list.Node,
 	intrinsics.type_has_field(T, "allocator"),
-	intrinsics.type_field_type(T, "allocator") == mem.Allocator {
+	intrinsics.type_field_type(T, "allocator") ==
+	mem.Allocator {
 	p.allocator = allocator
 	p.max_msgs = max_msgs
 	p.reset = reset
@@ -116,10 +121,15 @@ get :: proc(
 	p: ^Pool($T),
 	strategy := Allocation_Strategy.Always,
 	timeout: time.Duration = 0,
-) -> (^T, Pool_Status) where intrinsics.type_has_field(T, "node"),
-	intrinsics.type_field_type(T, "node") == list.Node,
+) -> (
+	^T,
+	Pool_Status,
+) where intrinsics.type_has_field(T, "node"),
+	intrinsics.type_field_type(T, "node") ==
+	list.Node,
 	intrinsics.type_has_field(T, "allocator"),
-	intrinsics.type_field_type(T, "allocator") == mem.Allocator {
+	intrinsics.type_field_type(T, "allocator") ==
+	mem.Allocator {
 	sync.mutex_lock(&p.mutex)
 
 	if p.state != .Active {
@@ -166,6 +176,7 @@ get :: proc(
 		msg.node = {}
 		msg.allocator = alloc
 		if p.reset != nil {
+			// if message also used in another place, reset increase probablity of failure
 			p.reset(msg, .Get)
 		}
 		return msg, .Ok
@@ -188,10 +199,7 @@ get :: proc(
 // Returns nil if msg was recycled into the pool or freed by the pool.
 // No-op if msg is nil (returns nil).
 // Calls reset(.Put) before recycling, outside the mutex.
-put :: proc(
-	p: ^Pool($T),
-	msg: ^T,
-) -> ^T where intrinsics.type_has_field(T, "node"),
+put :: proc(p: ^Pool($T), msg: ^T) -> ^T where intrinsics.type_has_field(T, "node"),
 	intrinsics.type_field_type(T, "node") == list.Node,
 	intrinsics.type_has_field(T, "allocator"),
 	intrinsics.type_field_type(T, "allocator") == mem.Allocator {
@@ -228,9 +236,7 @@ put :: proc(
 // After destroy: get returns (nil, .Closed), put frees own messages.
 // Safe to call more than once.
 // Call after all threads have stopped using the pool.
-destroy :: proc(
-	p: ^Pool($T),
-) where intrinsics.type_has_field(T, "node"),
+destroy :: proc(p: ^Pool($T)) where intrinsics.type_has_field(T, "node"),
 	intrinsics.type_field_type(T, "node") == list.Node,
 	intrinsics.type_has_field(T, "allocator"),
 	intrinsics.type_field_type(T, "allocator") == mem.Allocator {
