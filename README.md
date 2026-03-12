@@ -43,8 +43,8 @@ Odin has [channels](https://pkg.odin-lang.org/core/sync/chan/). Use them if they
 
 **mbox** helps when you need:
 
-- **Zero allocations**: No copying. It links your struct directly.
-- **Recycling**: Use the same message over and over
+- **Zero copies**: No data copying. It links your struct directly.
+- **Recycling**: Use a pool to reuse messages with zero allocations per send.
 - **nbio**: Wakes the `nbio` loop when a message arrives.
 - **Timeouts**: Stop waiting after a certain time.
 - **Interrupts**: Wake a thread without sending a message. One-time signal.
@@ -94,12 +94,13 @@ Both are thread-safe. Both have zero allocations for sending or receiving.
 
 | Example | Description |
 | :--- | :--- |
-| [Endless Game](examples/endless_game.odin) | 4 threads pass a single message in a circle. Millions of turns with zero overhead. |
+| [Endless Game](examples/endless_game.odin) | 4 threads pass a single heap-allocated message in a circle. |
 | [Negotiation](examples/negotiation.odin) | Request and reply between a worker thread and an `nbio` loop. |
 | [Life and Death](examples/lifecycle.odin) | Full flow: from allocation to cleanup. |
-| [Stress Test](examples/stress.odin) | Many threads sending thousands of messages to one receiver. |
+| [Stress Test](examples/stress.odin) | Many producers, one consumer, pool-based message recycling. |
 | [Interrupt](examples/interrupt.odin) | How to wake a waiting thread without sending a message. |
 | [Close](examples/close.odin) | Stop the game and get back all unprocessed messages. |
+| [Master](examples/master.odin) | Pool + mailbox owned by one struct. Coordinated shutdown. |
 
 ---
 
@@ -110,15 +111,21 @@ They are just small tips to show you the game...
 
 ## Quick start
 
+> **Warning**: Never send stack-allocated messages across threads.
+> The stack frame can be freed before the receiving thread reads the message.
+> Always allocate messages on the heap (`new`) or use a pool.
+
 ### Basic Send and Receive
 
 ```odin
 // sender thread:
-msg := My_Msg{data = 42}
-mbox.send(&mb, &msg)
+msg := new(My_Msg)
+msg.data = 42
+mbox.send(&mb, msg)
 
 // receiver thread:
 got, err := mbox.wait_receive(&mb, 100 * time.Millisecond)
+if got != nil { free(got) }
 ```
 
 ### Interrupt a Waiter
@@ -195,11 +202,40 @@ for node := list.pop_front(&remaining); node != nil; node = list.pop_front(&rema
 }
 ```
 
+## Pool
+
+For high-throughput use, recycle messages with the companion `pool` package.
+
+```odin
+import pool_pkg "path/to/odin-mbox/pool"
+
+// Setup:
+p: pool_pkg.Pool(My_Msg)
+pool_pkg.init(&p, initial_msgs = 64, max_msgs = 256)
+
+// Sender: get from pool, fill, send.
+msg := pool_pkg.get(&p)
+msg.data = 42
+mbox.send(&mb, msg)
+
+// Receiver: receive, use, return to pool.
+got, err := mbox.wait_receive(&mb)
+if err == .None { pool_pkg.put(&p, got) }
+
+// Cleanup:
+pool_pkg.destroy(&p)
+```
+
+See [design/mbox_examples.md](design/mbox_examples.md) for the MASTER pattern (pool + mailbox, coordinated shutdown).
+
+---
+
 ## Best Practices
 
 1. **Ownership.** Once you send a message, don't touch it. It belongs to the mailbox until someone receives it.
-2. **Cleanup.** Use `close()` to stop. Undelivered messages are returned to you—it is now safe to free or reuse them.
-3. **Threads.** Always wait for threads to finish (`thread.join`) before you free the mailbox itself.
+2. **Heap.** Always use heap-allocated messages across threads. Never use stack allocation.
+3. **Cleanup.** Use `close()` to stop. Undelivered messages are returned to you—free or return to pool.
+4. **Threads.** Always wait for threads to finish (`thread.join`) before you free the mailbox itself.
 
 
 ---

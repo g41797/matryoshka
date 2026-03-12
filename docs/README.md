@@ -26,8 +26,8 @@ Odin has [channels](https://pkg.odin-lang.org/core/sync/chan/). Use them if they
 
 **mbox** helps when you need:
 
-- **Zero allocations**: No copying. It links your struct directly.
-- **Recycling**: Use the same message over and over.
+- **Zero copies**: No data copying. It links your struct directly.
+- **Recycling**: Use a pool to reuse messages with zero allocations per send.
 - **nbio**: Wakes the `nbio` loop when a message arrives.
 - **Timeouts**: Stop waiting after a certain time.
 - **Interrupts**: Wake a thread without sending a message. One-time signal.
@@ -74,12 +74,16 @@ Both are thread-safe. Both have zero allocations for sending or receiving.
 
 Check the [examples/](https://github.com/g41797/odin-mbox/tree/main/examples) directory for:
 
-- **Endless Game**: 4 threads pass a single message in a circle.
+- **Endless Game**: 4 threads pass a single heap-allocated message in a circle.
 - **Negotiation**: Request and reply between a worker thread and an `nbio` loop.
 - **Life and Death**: Full flow: from allocation to cleanup.
-- **Stress Test**: Many threads sending thousands of messages to one receiver.
+- **Stress Test**: Many producers, one consumer, pool-based message recycling.
 - **Interrupt**: How to wake a waiting thread without sending a message.
 - **Close**: Stop the game and get back all unprocessed messages.
+- **Master**: Pool + mailbox owned by one struct. Coordinated shutdown.
+
+> **Note**: Always use heap-allocated messages across threads.
+> Never send stack-allocated messages. Use `new`/`free` or the `pool` package.
 
 ## Credits
 

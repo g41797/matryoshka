@@ -6,6 +6,8 @@ mbox is intrusive. The message struct is the node. No extra allocation per messa
 
 ## 1. Basic send and receive
 
+Allocate messages on the heap. Never pass stack-allocated messages across threads.
+
 ```odin
 import mbox "path/to/odin-mbox"
 import list "core:container/intrusive/list"
@@ -15,18 +17,22 @@ Msg :: struct {
     data: int,
 }
 
-// Sender:
-msg := Msg{data = 42}
-ok := mbox.send(&mb, &msg)
+// Sender thread:
+msg := new(Msg)
+msg.data = 42
+ok := mbox.send(&mb, msg)
 
 // Receiver (non-blocking poll):
 got, err := mbox.wait_receive(&mb, 0)  // err == .Timeout means no message
+if got != nil { free(got) }
 
 // Receiver (blocking, infinite wait):
 got, err := mbox.wait_receive(&mb)
+if got != nil { free(got) }
 
 // Receiver (blocking, with timeout):
 got, err := mbox.wait_receive(&mb, 100 * time.Millisecond)
+if got != nil { free(got) }
 ```
 
 ---
@@ -162,23 +168,32 @@ See `examples/negotiation.odin` for a working version of this pattern.
 
 ## 6. High-throughput stress pattern
 
-Many producers, one consumer.
+Many producers, one consumer. Use a pool for zero-allocation recycling.
 
 ```odin
+import pool_pkg "path/to/odin-mbox/pool"
+
+// Setup:
+shared_pool: pool_pkg.Pool(Msg)
+pool_pkg.init(&shared_pool, initial_msgs = N, max_msgs = N)
+
 // Consumer thread:
 for {
     msg, err := mbox.wait_receive(&mb)
     if err == .Closed { break }
-    // process msg
+    pool_pkg.put(&shared_pool, msg)  // return to pool
 }
 
 // Each producer thread:
-for i in 0 ..< N {
-    mbox.send(&mb, &msgs[i])
+for _ in 0 ..< N / P {
+    msg := pool_pkg.get(&shared_pool)
+    if msg != nil {
+        mbox.send(&mb, msg)
+    }
 }
 
-// After all producers finish (capture remaining if drain is needed — see Pattern 8):
-_, _ = mbox.close(&mb)
+// After done:
+pool_pkg.destroy(&shared_pool)
 ```
 
 See `examples/stress.odin` for a working version of this pattern.
@@ -254,3 +269,77 @@ This pattern is perfect for:
 - Games where one "entity" is manipulated by many systems.
 
 See `examples/endless_game.odin` for the full implementation.
+
+---
+
+## 10. Pool usage (init / get / put / destroy)
+
+Use a pool when you send many messages and want to avoid repeated heap allocations.
+
+```odin
+import pool_pkg "path/to/odin-mbox/pool"
+
+// Setup (once, before any threads start):
+p: pool_pkg.Pool(Msg)
+pool_pkg.init(&p, initial_msgs = 64, max_msgs = 256)
+
+// Sender thread: take from pool, fill data, send.
+msg := pool_pkg.get(&p)
+if msg != nil {
+    msg.data = 42
+    mbox.send(&mb, msg)
+}
+
+// Receiver thread: receive, use, return to pool.
+got, err := mbox.wait_receive(&mb)
+if err == .None && got != nil {
+    // use got.data
+    pool_pkg.put(&p, got)
+}
+
+// Cleanup (after all threads are done):
+pool_pkg.destroy(&p)
+```
+
+Rules:
+- A message is either in the pool OR in a mailbox. Never both.
+- Call destroy only after all threads have stopped using the pool.
+- put() on a full pool frees the message instead of returning it.
+
+---
+
+## 11. MASTER pattern (pool + mailbox, coordinated shutdown)
+
+One struct owns the pool and the mailbox. One shutdown call handles everything.
+
+Key rule: drain the mailbox BEFORE destroying the pool.
+If you destroy the pool first, the messages still in the mailbox become dangling pointers.
+
+```odin
+import pool_pkg "path/to/odin-mbox/pool"
+
+Master :: struct {
+    pool:  pool_pkg.Pool(Msg),
+    inbox: mbox.Mailbox(Msg),
+}
+
+master_init :: proc(m: ^Master) -> bool {
+    return pool_pkg.init(&m.pool, initial_msgs = 8, max_msgs = 64)
+}
+
+master_shutdown :: proc(m: ^Master) {
+    // 1. Close inbox. Get back any undelivered messages.
+    remaining, _ := mbox.close(&m.inbox)
+
+    // 2. Return them to pool — not free, pool owns them.
+    for node := list.pop_front(&remaining); node != nil; node = list.pop_front(&remaining) {
+        msg := container_of(node, Msg, "node")
+        pool_pkg.put(&m.pool, msg)
+    }
+
+    // 3. Now safe to destroy pool.
+    pool_pkg.destroy(&m.pool)
+}
+```
+
+See `examples/master.odin` for a working version of this pattern.

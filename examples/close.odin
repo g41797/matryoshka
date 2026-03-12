@@ -5,22 +5,21 @@ import list "core:container/intrusive/list"
 import "core:thread"
 import "core:time"
 
-// close_example shows how to stop the game and get all messages back.
+// close_example shows how to stop a mailbox and get all undelivered messages back.
 close_example :: proc() -> bool {
 	mb: mbox.Mailbox(Msg)
 
-	// --- Part 1: close() wakes waiters ---
-	// We use an empty mailbox to ensure the waiter blocks.
+	// --- Part 1: close() wakes a blocked waiter ---
 	err_result: mbox.Mailbox_Error
 	t := thread.create_and_start_with_poly_data2(&mb, &err_result, proc(mb: ^mbox.Mailbox(Msg), res: ^mbox.Mailbox_Error) {
 		_, err := mbox.wait_receive(mb)
 		res^ = err
 	})
 
-	// Wait for the thread to be inside wait_receive.
+	// Wait for the thread to enter wait_receive.
 	time.sleep(10 * time.Millisecond)
 
-	// Close the empty mailbox. This must wake the waiter with .Closed.
+	// Close the empty mailbox. Waiter must wake with .Closed.
 	_, was_open := mbox.close(&mb)
 	if !was_open {
 		return false
@@ -34,23 +33,26 @@ close_example :: proc() -> bool {
 	}
 
 	// --- Part 2: close() returns undelivered messages ---
-	// Reset the mailbox for a fresh start.
-	mb = {} 
-	
-	// Create two messages. 
-	a := Msg{data = 1}
-	b := Msg{data = 2}
-	
+	mb = {}
+
+	// Allocate two messages on the heap.
+	a := new(Msg)
+	a.data = 1
+	b := new(Msg)
+	b.data = 2
+
 	// Send them. Mailbox now owns the references.
-	mbox.send(&mb, &a)
-	mbox.send(&mb, &b)
+	mbox.send(&mb, a)
+	mbox.send(&mb, b)
 
 	// Close and get all undelivered messages back.
 	remaining, _ := mbox.close(&mb)
 
-	// Verify we got both references back.
+	// Free each returned message.
 	count := 0
 	for node := list.pop_front(&remaining); node != nil; node = list.pop_front(&remaining) {
+		msg := container_of(node, Msg, "node")
+		free(msg)
 		count += 1
 	}
 

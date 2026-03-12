@@ -1,66 +1,76 @@
 package examples
 
 import mbox ".."
+import pool_pkg "../pool"
 import list "core:container/intrusive/list"
 import "core:sync"
 import "core:thread"
 
-// stress_example shows high-throughput multi-producer single-consumer messaging.
+// stress_example shows high-throughput multi-producer single-consumer messaging with pool recycling.
 //
-// 10 producer threads each send 1000 messages.
-// 1 consumer thread receives all 10,000 messages via wait_receive.
-// The example returns true if all messages were received.
-//
-// Messages are pre-allocated on the heap. Producers index into their slice.
-// After the consumer counts all N, it signals done.
-// Main waits for done, then closes the mailbox and drains any remaining messages.
+// - 10 producers each send 1,000 messages (10,000 total).
+// - 1 consumer receives all messages and returns each to the pool.
+// - Pool is pre-allocated with N messages. No heap allocations during the run.
+// - After the consumer counts all N, main closes and destroys the pool.
 stress_example :: proc() -> bool {
 	N :: 10_000
 	P :: 10
 
-	// Pre-allocate all messages. Producers only write their node links.
-	// Safe to free after consumer counts all N.
-	msgs := make([]Msg, N)
-	defer delete(msgs)
+	// Pre-allocate N messages. Producers get from pool; consumer puts back.
+	shared_pool: pool_pkg.Pool(Msg)
+	if !pool_pkg.init(&shared_pool, initial_msgs = N, max_msgs = N) {
+		return false
+	}
 
 	mb: mbox.Mailbox(Msg)
 	done: sync.Sema
 
-	// Consumer: counts N messages then signals done.
-	thread.run_with_poly_data2(&mb, &done, proc(mb: ^mbox.Mailbox(Msg), done: ^sync.Sema) {
-		count := 0
-		for count < N {
-			_, err := mbox.wait_receive(mb)
-			if err == .Closed {
-				break
+	// Consumer: receives messages and returns them to the pool.
+	thread.run_with_poly_data3(
+		&mb,
+		&shared_pool,
+		&done,
+		proc(mb: ^mbox.Mailbox(Msg), p: ^pool_pkg.Pool(Msg), done: ^sync.Sema) {
+			count := 0
+			for count < N {
+				msg, err := mbox.wait_receive(mb)
+				if err == .Closed {
+					break
+				}
+				if err == .None {
+					pool_pkg.put(p, msg)
+					count += 1
+				}
 			}
-			if err == .None {
-				count += 1
-			}
-		}
-		sync.sema_post(done)
-	})
+			sync.sema_post(done)
+		},
+	)
 
-	// P producers: each sends its slice of messages.
-	for p in 0 ..< P {
-		slice := msgs[p * (N / P) : (p + 1) * (N / P)]
-		thread.run_with_poly_data2(&mb, slice, proc(mb: ^mbox.Mailbox(Msg), slice: []Msg) {
-			for i in 0 ..< len(slice) {
-				mbox.send(mb, &slice[i])
-			}
-		})
+	// P producers: each gets N/P messages from pool and sends them.
+	for _ in 0 ..< P {
+		thread.run_with_poly_data2(
+			&mb,
+			&shared_pool,
+			proc(mb: ^mbox.Mailbox(Msg), p: ^pool_pkg.Pool(Msg)) {
+				for _ in 0 ..< N / P {
+					msg := pool_pkg.get(p)
+					if msg != nil {
+						mbox.send(mb, msg)
+					}
+				}
+			},
+		)
 	}
 
-	// Wait for consumer to count all N messages.
 	sync.sema_wait(&done)
 
-	// Close and drain any remaining messages.
-	// In this flow remaining is empty (consumer got all N), but capturing the
-	// return value and draining is correct practice and demonstrates the pattern.
+	// Drain any remaining messages back to pool before destroy.
 	remaining, _ := mbox.close(&mb)
 	for node := list.pop_front(&remaining); node != nil; node = list.pop_front(&remaining) {
-		// process or free undelivered messages here
+		msg := container_of(node, Msg, "node")
+		pool_pkg.put(&shared_pool, msg)
 	}
 
+	pool_pkg.destroy(&shared_pool)
 	return true
 }

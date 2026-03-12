@@ -12,13 +12,11 @@ Msg :: struct {
 	data: int,
 }
 
-// _Worker holds pointers to both mailboxes, the request, and the result.
-// Lives on the main thread stack. thread.join ensures it outlives the worker thread.
+// _Worker holds pointers to both mailboxes and the result.
 @(private)
 _Worker :: struct {
 	loop_mb:  ^mbox.Loop_Mailbox(Msg),
 	reply_mb: ^mbox.Mailbox(Msg),
-	request:  ^Msg,
 	ok:       bool,
 }
 
@@ -28,9 +26,10 @@ _Worker :: struct {
 //   worker  →  Loop_Mailbox  →  nbio loop
 //   nbio loop →  Mailbox  →  worker
 //
-// The worker sends a Msg with data=10.
-// The loop increments data by 1 and sends the reply.
-// The worker verifies data == 11.
+// - Worker allocates a request on the heap, sends it to the loop.
+// - Loop receives the request. Reuses it as the reply (increments data, sends back).
+// - Worker receives the reply and frees it.
+// - One allocation per round-trip. Worker owns the memory start to finish.
 negotiation_example :: proc() -> bool {
 	err := nbio.acquire_thread_event_loop()
 	if err != nil {
@@ -47,26 +46,27 @@ negotiation_example :: proc() -> bool {
 	// reply_mb sends replies back to the worker.
 	reply_mb: mbox.Mailbox(Msg)
 
-	// request and reply live on the main thread stack.
-	// thread.join below ensures they outlive the worker thread.
-	request := Msg{data = 10}
-	reply := Msg{}
-
-	// Ensure the loop is initialized and wake-up events are registered.
-	// This is required on some platforms (like macOS) before we can call wake_up.
+	// Ensure the loop is initialized before worker threads can call wake_up.
+	// Required on some platforms (like macOS/kqueue).
 	nbio.tick(0)
 
-	// w lives on the main thread stack too.
-	w := _Worker{&loop_mb, &reply_mb, &request, false}
+	w := _Worker{loop_mb = &loop_mb, reply_mb = &reply_mb}
 
-	// Start worker: sends request to loop, waits for reply.
+	// Worker: allocates request, sends to loop, waits for reply, frees reply.
 	t := thread.create_and_start_with_poly_data(&w, proc(w: ^_Worker) {
-		mbox.send_to_loop(w.loop_mb, w.request)
-		msg, recv_err := mbox.wait_receive(w.reply_mb)
-		w.ok = recv_err == .None && msg != nil && msg.data == w.request.data + 1
+		req := new(Msg)
+		req.data = 10
+		mbox.send_to_loop(w.loop_mb, req)
+
+		// Worker allocated req; loop will send it back as reply.
+		reply, recv_err := mbox.wait_receive(w.reply_mb)
+		w.ok = recv_err == .None && reply != nil && reply.data == 11
+		if reply != nil {
+			free(reply) // worker frees what it allocated
+		}
 	})
 
-	// Event loop: tick until the request is processed and reply is sent.
+	// Event loop: tick until request arrives, increment data, send back as reply.
 	for {
 		tick_err := nbio.tick()
 		if tick_err != nil {
@@ -74,8 +74,10 @@ negotiation_example :: proc() -> bool {
 		}
 		msg, ok := mbox.try_receive_loop(&loop_mb)
 		if ok {
-			reply.data = msg.data + 1
-			mbox.send(&reply_mb, &reply)
+			// Reuse the received message as the reply.
+			// No extra allocation needed. Ownership stays with the worker.
+			msg.data = msg.data + 1
+			mbox.send(&reply_mb, msg)
 			break
 		}
 	}

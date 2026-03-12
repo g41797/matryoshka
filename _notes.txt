@@ -24,3 +24,7 @@ context—Odin’s Most Misunderstood Feature
 
 Odin build doc pages magic
     https://github.com/laytan/odin-tree-sitter
+
+
+Add core:nbio#6124
+    https://github.com/odin-lang/Odin/pull/6124

@@ -40,6 +40,11 @@ test_example_lifecycle :: proc(t: ^testing.T) {
 	testing.expect(t, examples.lifecycle_example(), "lifecycle_example failed")
 }
 
+@(test)
+test_master_example :: proc(t: ^testing.T) {
+	testing.expect(t, examples.master_example(), "master_example failed")
+}
+
 // --- Mailbox edge-case tests ---
 
 // Msg is the local test message type.
@@ -224,10 +229,13 @@ test_fifo_order :: proc(t: ^testing.T) {
 @(test)
 test_wait_receive_gets_message :: proc(t: ^testing.T) {
 	mb: mbox.Mailbox(Msg)
-	m := Msg{data = 99}
 
-	// Send from a separate thread after a short delay.
-	thread.run_with_poly_data2(&mb, &m, proc(mb: ^mbox.Mailbox(Msg), m: ^Msg) {
+	// Allocate on the main thread. Worker sends it after a delay.
+	// Receiver frees it. Allocation and free happen in the same thread (main).
+	m := new(Msg)
+	m.data = 99
+
+	thread.run_with_poly_data2(&mb, m, proc(mb: ^mbox.Mailbox(Msg), m: ^Msg) {
 		time.sleep(5 * time.Millisecond)
 		mbox.send(mb, m)
 	})
@@ -235,4 +243,7 @@ test_wait_receive_gets_message :: proc(t: ^testing.T) {
 	got, err := mbox.wait_receive(&mb)
 	testing.expect(t, err == .None, "wait_receive should not error")
 	testing.expect(t, got != nil && got.data == 99, "wait_receive should get the sent message")
+	if got != nil {
+		free(got)
+	}
 }

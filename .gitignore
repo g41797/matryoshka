@@ -23,6 +23,7 @@ ols.json
 # Local Session Data
 mailbox_init.md
 design/STATUS.md
+design/heap-pool-plan.md
 
 # Documentation tools
 /tools/tmp_pkg_repo

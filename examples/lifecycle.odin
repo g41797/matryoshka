@@ -16,7 +16,7 @@ lifecycle_example :: proc() -> bool {
 	m.data = 100
 
 	// 2. Interrupt the game.
-	// This wakes up the next waiter with .Interrupted.
+	// Wakes the next waiter with .Interrupted.
 	mbox.interrupt(&mb)
 	_, err := mbox.wait_receive(&mb)
 	if err != .Interrupted {
