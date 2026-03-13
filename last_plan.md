@@ -89,7 +89,7 @@ nbio_mbox/  — loop_mbox/, wakeup/, core:nbio
 
 ## Stages
 
-### Stage 1 — init returns error
+### Stage 1 — init returns error ✓ DONE (Session 74)
 
 **Claim**: `init_loop_mailbox` should return `Loop_Mailbox_Error`.
 Initialization can fail (`loop == nil`, keepalive timer returns nil).
@@ -126,7 +126,7 @@ Files: `tests/loop_test.odin` (4 tests), `examples/negotiation.odin`.
 
 ---
 
-### Stage 2 — Verify close_loop keepalive handling
+### Stage 2 — Verify close_loop keepalive handling ✓ DONE (Session 74)
 
 **Claim**: `close_loop` must remove keepalive outside the mutex.
 
@@ -137,14 +137,14 @@ No code change. Document and close.
 
 ---
 
-### Stage 3 — mpsc/ package (Vyukov queue)
+### Stage 3 — mpsc/ package (Vyukov queue) ✓ DONE (Session 74)
 
 **Claim**: Replace mutex + intrusive list with lock-free Vyukov MPSC queue.
 
 **Verdict**: Valid with caveats:
 1. `stub: list.Node` embedded — Queue NOT copyable after init
-2. Stall state: `pop` returns nil mid-push — retry on next tick
-3. No `len` counter — remove `stats` proc from `loop_mbox`
+2. Stall state: `pop` returns nil mid-push — retry on next tick; document in `pop`'s comment
+3. Length counter — match `core:sync/chan` behavior (add atomic counter); `len > 0` does NOT guarantee `pop` succeeds (stall state) — document this in `pop`'s comment
 4. `close_loop` drain: repeated `pop`, rebuild `list.List` for return value
 5. `closed` flag must use `intrinsics.atomic_load/store`
 
@@ -162,6 +162,7 @@ Queue :: struct($T: typeid) {
     head: ^list.Node,  // atomic — producer side
     tail: ^list.Node,  // consumer side only
     stub: list.Node,   // sentinel; NOT copyable after init
+    len:  int,         // atomic counter
 }
 // init, push (multi-producer safe), pop (single consumer only)
 ```
@@ -180,7 +181,7 @@ Loop_Mailbox :: struct($T: typeid) {
 
 ---
 
-### Stage 4 — wakeup/ package (WakeUper interface + sema impl)
+### Stage 4 — wakeup/ package (WakeUper interface + sema impl)  ← NEXT
 
 **Claim**: Separate the wakeup mechanism from the queue.
 
@@ -199,14 +200,16 @@ package wakeup
 
 WakeUper :: struct {
     ctx:   rawptr,
-    wake:  proc(rawptr),
-    close: proc(rawptr),
+    wake:  proc(rawptr),   // NOT #contextless — callers may use logger/allocator
+    close: proc(rawptr),   // NOT #contextless — callers may use logger/allocator
 }
 
 // sema_wakeup: WakeUper backed by sync.Semaphore.
 // Useful for non-nbio loops and unit tests.
 sema_wakeup :: proc(allocator := context.allocator) -> WakeUper
 ```
+
+**Decision**: WakeUper procs do NOT use `#contextless`. Follows existing codebase pattern (`nbio` callbacks, pool `reset`). Users may need `context.logger` inside wake callbacks.
 
 **Updated `Loop_Mailbox` after Stage 4** (still in root, pre-Stage 6):
 ```odin
@@ -254,7 +257,7 @@ Pool :: struct($T: typeid) {
 **-vet workaround**: add `@(private) _PoolWaker :: wakeup.WakeUper` to `pool.odin`.
 
 **Files changed**:
-- `pool/pool.odin` — add `waker`, `empty_was_returned`; update `init`/`get`/`put`/`destroy`
+- `pool/pool.odin` — add `waker`, \`empty_was_returned\`; update `init`/`get`/`put`/`destroy`
 - `pool_tests/pool_test.odin` — add tests: WakeUper wakes on put, waker.close on destroy
 
 **Design doc**: `design/loop-mbox-enhancement.md` — Stage 5 section.
@@ -298,7 +301,7 @@ init_loop_mailbox :: proc(
 Repo name `odin-mbox` and description no longer match the library scope.
 Update repo identity — name, description, tagline, root README intro — to
 reflect a multi-package concurrency library, not just a mailbox.
-Details TBD when we reach this stage.
+**New name**: `odin-itc` (Inter-Thread Communication). Confirmed.
 
 ---
 
@@ -328,6 +331,30 @@ Details TBD when we reach this stage.
 4. Comments check, AI-ish scan
 5. Update `design/STATUS.md` checkpoint
 6. Update `last_plan.md` (full plan)
+
+---
+
+## Strategic Analysis & Technical Refinements
+
+### 1. MPSC Stats (Stage 3)
+- **Context**: Odin's `core:sync/chan` provides `len()` and `cap()` functions.
+- **Decision**: We will keep the `stats` (or `len`) function to match the Odin environment.
+- **Implementation**: Add an atomic length counter to the `mpsc.Queue`. This is necessary because pointer comparison is unreliable during concurrent push/pop operations.
+
+### 2. WakeUper Context (Stage 4)
+- **Status**: Closed.
+- **Decision**: Do NOT use `#contextless`. Users may need `context.logger` or custom allocators inside wake callbacks. Follows existing codebase pattern.
+
+### 3. Re-branding (Stage 7)
+- **Preferred Name**: `odin-itc` (Inter-Thread Communication).
+- **Advice**: This name is very descriptive and fits well with other Odin libraries. It honors the Zig roots while acknowledging the move to a general communication toolkit.
+
+### 4. MPSC "Stall" States
+- **Technical Note**: Vyukov queues have a known "stall" state where a consumer sees a `nil` next pointer while a producer is mid-update.
+- **Decision**: `Loop_Mailbox` treats stall as "temporarily empty." Next tick drains it. Document this in `pop`'s comment in `mpsc/queue.odin`. Note: `len > 0` does NOT guarantee `pop` succeeds during stall — also document in `pop`'s comment.
+
+### 5. Documentation Strategy (Stage 8)
+- **Willings**: Per-package READMEs must include a "Copy-Pasteable" example for that specific package. This makes the library more attractive to developers who only need one component (like the lock-free queue).
 
 ---
 
@@ -382,3 +409,23 @@ odin test ./nbio_mbox/ -vet -strict-style -disallow-do -o:none -debug     (unit)
 odin test ./tests/ -vet -strict-style -disallow-do -o:none -debug         (functional)
 odin test ./pool_tests/ -vet -strict-style -disallow-do -o:none -debug    (functional)
 ```
+
+
+## For code review
+
+Review this implementation for:
+- race conditions
+- memory safety issues
+- architectural violations
+- performance problems
+- weird concurrency bugs
+- missing error handling
+- protocol edge cases
+
+
+## For improvements
+
+Suggest:
+- simplifications
+- alternative algorithms
+- performance tweaks

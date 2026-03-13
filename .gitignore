@@ -20,6 +20,9 @@ mbox_test.exe
 .ols_cache/
 ols.json
 
+# Design working documents
+design/loop-mbox-enhancement.md
+
 # Local Session Data
 mailbox_init.md
 design/STATUS.md

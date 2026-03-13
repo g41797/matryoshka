@@ -35,12 +35,27 @@ Loop_Mailbox :: struct($T: typeid) {
 @(private)
 _noop :: proc(_: ^nbio.Operation) {}
 
+// Loop_Mailbox_Error is the error type returned by init_loop_mailbox.
+Loop_Mailbox_Error :: enum {
+	None,
+	Invalid_Loop,
+	Keepalive_Failed,
+}
+
 // init_loop_mailbox sets up the mailbox for an nbio loop.
 // It creates a hidden keepalive timer so nbio.tick() blocks correctly on all platforms.
-init_loop_mailbox :: proc(m: ^Loop_Mailbox($T), loop: ^nbio.Event_Loop) where intrinsics.type_has_field(T, "node"),
+// Returns .Invalid_Loop if loop is nil, .Keepalive_Failed if the timer cannot be created.
+init_loop_mailbox :: proc(m: ^Loop_Mailbox($T), loop: ^nbio.Event_Loop) -> Loop_Mailbox_Error where intrinsics.type_has_field(T, "node"),
 	intrinsics.type_field_type(T, "node") == list.Node {
+	if loop == nil {
+		return .Invalid_Loop
+	}
 	m.loop = loop
 	m.keepalive = nbio.timeout(time.Hour * 24, _noop, loop)
+	if m.keepalive == nil {
+		return .Keepalive_Failed
+	}
+	return .None
 }
 
 // send_to_loop adds msg to the mailbox and wakes the nbio loop.

@@ -27,7 +27,9 @@ test_loop_basic :: proc(t: ^testing.T) {
 	loop := nbio.current_thread_event_loop()
 
 	lm: mbox.Loop_Mailbox(Msg)
-	mbox.init_loop_mailbox(&lm, loop)
+	if !testing.expect(t, mbox.init_loop_mailbox(&lm, loop) == .None, "init_loop_mailbox failed") {
+		return
+	}
 
 	a := Msg{data = 1}
 	b := Msg{data = 2}
@@ -59,7 +61,9 @@ test_loop_close_and_drain :: proc(t: ^testing.T) {
 	loop := nbio.current_thread_event_loop()
 
 	lm: mbox.Loop_Mailbox(Msg)
-	mbox.init_loop_mailbox(&lm, loop)
+	if !testing.expect(t, mbox.init_loop_mailbox(&lm, loop) == .None, "init_loop_mailbox failed") {
+		return
+	}
 
 	a := Msg{data = 10}
 	b := Msg{data = 20}
@@ -89,7 +93,9 @@ test_loop_wake_on_send :: proc(t: ^testing.T) {
 	loop := nbio.current_thread_event_loop()
 
 	lm: mbox.Loop_Mailbox(Msg)
-	mbox.init_loop_mailbox(&lm, loop)
+	if !testing.expect(t, mbox.init_loop_mailbox(&lm, loop) == .None, "init_loop_mailbox failed") {
+		return
+	}
 
 	m := Msg{data = 77}
 	ctx := _Loop_Wake_Ctx{lm = &lm, msg = &m}
@@ -132,7 +138,9 @@ test_loop_double_close :: proc(t: ^testing.T) {
 	loop := nbio.current_thread_event_loop()
 
 	lm: mbox.Loop_Mailbox(Msg)
-	mbox.init_loop_mailbox(&lm, loop)
+	if !testing.expect(t, mbox.init_loop_mailbox(&lm, loop) == .None, "init_loop_mailbox failed") {
+		return
+	}
 
 	_, was_open1 := mbox.close_loop(&lm)
 	_, was_open2 := mbox.close_loop(&lm)

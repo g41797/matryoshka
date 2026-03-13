@@ -44,7 +44,9 @@ negotiation_example :: proc() -> bool {
 
 	// loop_mb receives requests from the worker.
 	loop_mb: mbox.Loop_Mailbox(Msg)
-	mbox.init_loop_mailbox(&loop_mb, loop)
+	if mbox.init_loop_mailbox(&loop_mb, loop) != .None {
+		return false
+	}
 
 	// reply_mb sends replies back to the worker.
 	reply_mb: mbox.Mailbox(Msg)
