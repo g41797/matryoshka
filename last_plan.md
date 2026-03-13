@@ -181,7 +181,7 @@ Loop_Mailbox :: struct($T: typeid) {
 
 ---
 
-### Stage 4 — wakeup/ package (WakeUper interface + sema impl)  ← NEXT
+### Stage 4 — wakeup/ package (WakeUper interface + sema impl) ✓ DONE (Session 74)
 
 **Claim**: Separate the wakeup mechanism from the queue.
 
@@ -228,7 +228,7 @@ init_loop_mailbox :: proc(m: ^Loop_Mailbox($T), w: wakeup.WakeUper) -> Loop_Mail
 
 ---
 
-### Stage 5 — Pool WakeUper
+### Stage 5 — Pool WakeUper  ← NEXT
 
 **Purpose**:
 Add optional `wakeup.WakeUper` to the pool so event-loop callers can be notified
@@ -257,7 +257,7 @@ Pool :: struct($T: typeid) {
 **-vet workaround**: add `@(private) _PoolWaker :: wakeup.WakeUper` to `pool.odin`.
 
 **Files changed**:
-- `pool/pool.odin` — add `waker`, \`empty_was_returned\`; update `init`/`get`/`put`/`destroy`
+- `pool/pool.odin` — add `waker`, `empty_was_returned`; update `init`/`get`/`put`/`destroy`
 - `pool_tests/pool_test.odin` — add tests: WakeUper wakes on put, waker.close on destroy
 
 **Design doc**: `design/loop-mbox-enhancement.md` — Stage 5 section.
@@ -358,6 +358,25 @@ Details TBD when we reach this stage.
 
 ---
 
+## Edge Cases & Missing Tests Strategy
+
+To keep `queue_test.odin` and `wakeup_test.odin` clean as "runner of examples" and basic unit tests, we will create separate files for edge cases and stress tests.
+
+### 1. MPSC Edge Cases (`mpsc/edge_test.odin`)
+- **Concurrent Push Stress**: 10 threads pushing 10,000 items each while 1 thread pops. Verify total count and no lost items.
+- **Stall State Handling**: A test that attempts to hit the Vyukov stall window (where `pop` returns `nil` but `len > 0`) under high contention.
+- **Stub Recycling Verification**: Test specifically targeting the logic path where the stub sentinel is recycled when one item remains.
+- **Length Consistency**: Verify `length()` accurately reflects atomic increments/decrements even if `pop` temporarily stalls.
+- **Missed Test**: `test_pop_all_drains_to_zero` — ensures that repeated pops from a multi-item queue eventually return `nil` and `length()` is 0.
+
+### 2. WakeUper Edge Cases (`wakeup/edge_test.odin`)
+- **Concurrent Wake Signals**: 10 threads calling `wake()` at the same time on one `sema_wakeup`. Verify the semaphore count matches the number of calls.
+- **Wake after Close Protection**: Define and test the behavior when `wake()` is called after `close()`. (Recommendation: document as undefined/illegal, but provide a safe-fail if possible).
+- **Custom WakeUper**: Implement a simple dummy `WakeUper` in the test to verify the interface works without `sema_wakeup`.
+- **Missed Test**: `test_ctx_persistence` — check that the `rawptr` passed to `wake` and `close` is bit-for-bit identical to the one provided during creation.
+
+---
+
 ## Critical files
 
 | File | Stage | Action |
@@ -368,9 +387,11 @@ Details TBD when we reach this stage.
 | `mpsc/queue.odin` | 3 | NEW |
 | `mpsc/doc.odin` | 3 | NEW |
 | `mpsc/queue_test.odin` | 3 | NEW (unit tests) |
-| `wakeup/wakeup.odin` | 4 | NEW |
+| `mpsc/edge_test.odin` | 3 | NEW (edge + stress tests) |
+| `wakeup/wakeup.odin` | 4 | NEW + nil-check guards in _sema_wake/_sema_close |
 | `wakeup/doc.odin` | 4 | NEW |
 | `wakeup/wakeup_test.odin` | 4 | NEW (unit tests) |
+| `wakeup/edge_test.odin` | 4 | NEW (edge + concurrent tests) |
 | `pool/pool.odin` | 5 | Modify (add waker, empty_was_returned) |
 | `pool_tests/pool_test.odin` | 5 | Add WakeUper tests |
 | `mbox.odin` → `mbox/mbox.odin` | 6 | MOVE |
