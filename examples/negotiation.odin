@@ -44,14 +44,10 @@ negotiation_example :: proc() -> bool {
 
 	// loop_mb receives requests from the worker.
 	loop_mb: mbox.Loop_Mailbox(Msg)
-	loop_mb.loop = loop
+	mbox.init_loop_mailbox(&loop_mb, loop)
 
 	// reply_mb sends replies back to the worker.
 	reply_mb: mbox.Mailbox(Msg)
-
-	// Ensure the loop is initialized before worker threads can call wake_up.
-	// Required on some platforms (like macOS/kqueue).
-	nbio.tick(0)
 
 	w := _Worker{loop_mb = &loop_mb, reply_mb = &reply_mb}
 

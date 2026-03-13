@@ -207,7 +207,8 @@ Three ownership patterns:
 You still allocate message objects. mbox just links them.
 
 ### 5. nbio loop initialization
-On some platforms (like macOS/kqueue), `nbio.wake_up` requires that the event loop has been ticked at least once to register the internal wake-up event in the kernel. 
-
-Before starting any threads that might call `send_to_loop` or `close_loop`, call `nbio.tick(0)` on the loop thread. This sets up the loop for signals.
+`Loop_Mailbox` must be initialized with `init_loop_mailbox(m, loop)`. 
+This sets up a hidden keepalive timer. 
+The timer ensures that `nbio.tick()` blocks in the kernel and listens for signals. 
+Without this, the loop might return immediately on some platforms (macOS, Windows).
 

@@ -162,7 +162,8 @@ A no-op makes wake-up work on all systems.
 
 ```odin
 // nbio loop (receiver thread):
-loop_mb.loop = nbio.current_thread_event_loop()
+loop := nbio.current_thread_event_loop()
+mbox.init_loop_mailbox(&loop_mb, loop)
 
 for {
     nbio.tick() // process I/O and wake-up tasks

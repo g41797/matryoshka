@@ -27,7 +27,7 @@ test_loop_basic :: proc(t: ^testing.T) {
 	loop := nbio.current_thread_event_loop()
 
 	lm: mbox.Loop_Mailbox(Msg)
-	lm.loop = loop
+	mbox.init_loop_mailbox(&lm, loop)
 
 	a := Msg{data = 1}
 	b := Msg{data = 2}
@@ -59,7 +59,7 @@ test_loop_close_and_drain :: proc(t: ^testing.T) {
 	loop := nbio.current_thread_event_loop()
 
 	lm: mbox.Loop_Mailbox(Msg)
-	lm.loop = loop
+	mbox.init_loop_mailbox(&lm, loop)
 
 	a := Msg{data = 10}
 	b := Msg{data = 20}
@@ -89,23 +89,19 @@ test_loop_wake_on_send :: proc(t: ^testing.T) {
 	loop := nbio.current_thread_event_loop()
 
 	lm: mbox.Loop_Mailbox(Msg)
-	lm.loop = loop
-
-	// Register wake event with kernel before starting the sender thread.
-	// Without this, wake_up has no effect on some platforms.
-	nbio.tick(0)
+	mbox.init_loop_mailbox(&lm, loop)
 
 	m := Msg{data = 77}
 	ctx := _Loop_Wake_Ctx{lm = &lm, msg = &m}
 	th := thread.create_and_start_with_data(&ctx, proc(data: rawptr) {
 		c := (^_Loop_Wake_Ctx)(data)
-		time.sleep(5 * time.Millisecond)
+		time.sleep(10 * time.Millisecond) // Give loop time to enter tick()
 		mbox.send_to_loop(c.lm, c.msg)
 	})
 
 	got: ^Msg
 	for _ in 0 ..< 100 {
-		tick_err := nbio.tick(100 * time.Millisecond)
+		tick_err := nbio.tick(200 * time.Millisecond)
 		if tick_err != nil {
 			break
 		}
@@ -136,7 +132,7 @@ test_loop_double_close :: proc(t: ^testing.T) {
 	loop := nbio.current_thread_event_loop()
 
 	lm: mbox.Loop_Mailbox(Msg)
-	lm.loop = loop
+	mbox.init_loop_mailbox(&lm, loop)
 
 	_, was_open1 := mbox.close_loop(&lm)
 	_, was_open2 := mbox.close_loop(&lm)

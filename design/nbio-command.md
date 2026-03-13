@@ -217,6 +217,13 @@ This uses nbio race-protection for our queue.
 odin-mbox does this in send_to_loop.
 Users do not need manual sync.
 Handle commands and I/O on one thread.
+
+### Keep-alive Timer
+nbio.tick() only blocks if the loop has internal work (sockets, timers).
+Loop_Mailbox is an external queue, so nbio doesn't know it should block.
+init_loop_mailbox() creates a hidden keep-alive timer.
+This timer makes nbio.tick() block in the kernel instead of returning immediately.
+close_loop() automatically stops and removes this timer.
 ---
 
 ## References
