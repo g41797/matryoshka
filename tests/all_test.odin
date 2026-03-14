@@ -1,14 +1,25 @@
+//+test
 package tests
 
-import "core:testing"
 import examples "../examples"
+import nbio_mbox "../nbio_mbox"
+import "core:testing"
 
 // --- example tests ---
 
 @(test)
 test_negotiation :: proc(t: ^testing.T) {
-	testing.expect(t, examples.negotiation_example(), "negotiation_example failed")
+	testing.expect(
+		t,
+		examples.negotiation_example(.Timeout),
+		"negotiation_example .Timeout failed",
+	)
+	testing.expect(t, examples.negotiation_example(.UDP), "negotiation_example .UDP failed")
 }
+
+// -vet: keep nbio_mbox import used.
+@(private)
+_AN :: nbio_mbox.Nbio_Wakeuper_Kind
 
 @(test)
 test_stress :: proc(t: ^testing.T) {

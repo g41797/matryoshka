@@ -9,8 +9,8 @@ when a message is sent from another thread.
 
 | Kind | How it works | Notes |
 |------|-------------|-------|
-| `.UDP` (default) | Sender writes 1 byte to a loopback UDP socket; nbio wakes on receipt | Stable on Linux, macOS, Windows |
-| `.Timeout` | Zero-duration nbio timeout; CAS flag prevents queue overflow | 128-slot cross-thread queue limit |
+| `.UDP` (default) | Sender writes 1 byte to a loopback UDP socket; nbio wakes on receipt | No queue limit |
+| `.Timeout` | Zero-duration nbio timeout; CAS flag prevents queue overflow | Works on all platforms |
 
 ## Requirements
 

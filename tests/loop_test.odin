@@ -1,12 +1,13 @@
+//+test
 package tests
 
+import nbio_mbox "../nbio_mbox"
+import try_mbox "../try_mbox"
+import list "core:container/intrusive/list"
+import "core:nbio"
 import "core:testing"
 import "core:thread"
 import "core:time"
-import "core:nbio"
-import list "core:container/intrusive/list"
-import nbio_mbox "../nbio_mbox"
-import try_mbox "../try_mbox"
 
 // _Loop_Wake_Ctx holds state for the sender thread in test_loop_wake_on_send.
 _Loop_Wake_Ctx :: struct {
@@ -26,16 +27,20 @@ _HF_N :: 10_000
 // nbio_mbox tests
 // ----------------------------------------------------------------------------
 
-// test_loop_basic: send 3 messages, check length, drain in FIFO order.
-@(test)
-test_loop_basic :: proc(t: ^testing.T) {
-	if !testing.expect(t, nbio.acquire_thread_event_loop() == nil, "failed to acquire event loop") {
+// _test_loop_basic: send 3 messages, check length, drain in FIFO order.
+@(private)
+_test_loop_basic :: proc(t: ^testing.T, kind: nbio_mbox.Nbio_Wakeuper_Kind) {
+	if !testing.expect(
+		t,
+		nbio.acquire_thread_event_loop() == nil,
+		"failed to acquire event loop",
+	) {
 		return
 	}
 	defer nbio.release_thread_event_loop()
 	loop := nbio.current_thread_event_loop()
 
-	m, err := nbio_mbox.init_nbio_mbox(Msg, loop)
+	m, err := nbio_mbox.init_nbio_mbox(Msg, loop, kind)
 	if !testing.expect(t, err == .None, "init_nbio_mbox failed") {
 		return
 	}
@@ -67,16 +72,26 @@ test_loop_basic :: proc(t: ^testing.T) {
 	if msg3 != nil {free(msg3)}
 }
 
-// test_loop_close_and_drain: send 2 messages, close, check remaining count and that send returns false.
 @(test)
-test_loop_close_and_drain :: proc(t: ^testing.T) {
-	if !testing.expect(t, nbio.acquire_thread_event_loop() == nil, "failed to acquire event loop") {
+test_loop_basic :: proc(t: ^testing.T) {
+	_test_loop_basic(t, .Timeout)
+	_test_loop_basic(t, .UDP)
+}
+
+// _test_loop_close_and_drain: send 2 messages, close, check remaining count and that send returns false.
+@(private)
+_test_loop_close_and_drain :: proc(t: ^testing.T, kind: nbio_mbox.Nbio_Wakeuper_Kind) {
+	if !testing.expect(
+		t,
+		nbio.acquire_thread_event_loop() == nil,
+		"failed to acquire event loop",
+	) {
 		return
 	}
 	defer nbio.release_thread_event_loop()
 	loop := nbio.current_thread_event_loop()
 
-	m, err := nbio_mbox.init_nbio_mbox(Msg, loop)
+	m, err := nbio_mbox.init_nbio_mbox(Msg, loop, kind)
 	if !testing.expect(t, err == .None, "init_nbio_mbox failed") {
 		return
 	}
@@ -105,16 +120,26 @@ test_loop_close_and_drain :: proc(t: ^testing.T) {
 	testing.expect(t, !ok, "send after close should return false")
 }
 
-// test_loop_wake_on_send: thread sends a message; main loop wakes via nbio.tick.
 @(test)
-test_loop_wake_on_send :: proc(t: ^testing.T) {
-	if !testing.expect(t, nbio.acquire_thread_event_loop() == nil, "failed to acquire event loop") {
+test_loop_close_and_drain :: proc(t: ^testing.T) {
+	_test_loop_close_and_drain(t, .Timeout)
+	_test_loop_close_and_drain(t, .UDP)
+}
+
+// _test_loop_wake_on_send: thread sends a message; main loop wakes via nbio.tick.
+@(private)
+_test_loop_wake_on_send :: proc(t: ^testing.T, kind: nbio_mbox.Nbio_Wakeuper_Kind) {
+	if !testing.expect(
+		t,
+		nbio.acquire_thread_event_loop() == nil,
+		"failed to acquire event loop",
+	) {
 		return
 	}
 	defer nbio.release_thread_event_loop()
 	loop := nbio.current_thread_event_loop()
 
-	m, err := nbio_mbox.init_nbio_mbox(Msg, loop)
+	m, err := nbio_mbox.init_nbio_mbox(Msg, loop, kind)
 	if !testing.expect(t, err == .None, "init_nbio_mbox failed") {
 		return
 	}
@@ -124,12 +149,18 @@ test_loop_wake_on_send :: proc(t: ^testing.T) {
 	}
 
 	msg := new(Msg); msg.data = 77
-	ctx := _Loop_Wake_Ctx{m = m, msg = msg}
-	th := thread.create_and_start_with_data(&ctx, proc(data: rawptr) {
+	ctx := _Loop_Wake_Ctx {
+		m   = m,
+		msg = msg,
+	}
+	th := thread.create_and_start_with_data(
+	&ctx,
+	proc(data: rawptr) {
 		c := (^_Loop_Wake_Ctx)(data)
 		time.sleep(10 * time.Millisecond) // Give loop time to enter tick()
 		try_mbox.send(c.m, c.msg)
-	})
+	},
+	)
 
 	got: ^Msg
 	for _ in 0 ..< 100 {
@@ -155,6 +186,12 @@ test_loop_wake_on_send :: proc(t: ^testing.T) {
 	if got != nil {free(got)}
 }
 
+@(test)
+test_loop_wake_on_send :: proc(t: ^testing.T) {
+	_test_loop_wake_on_send(t, .Timeout)
+	_test_loop_wake_on_send(t, .UDP)
+}
+
 // test_loop_invalid_loop: init_nbio_mbox with nil loop returns (nil, .Invalid_Loop).
 @(test)
 test_loop_invalid_loop :: proc(t: ^testing.T) {
@@ -163,17 +200,21 @@ test_loop_invalid_loop :: proc(t: ^testing.T) {
 	testing.expect(t, err == .Invalid_Loop, "init_nbio_mbox(nil) should return .Invalid_Loop")
 }
 
-// test_loop_high_freq_send: worker sends 10,000 messages in a tight loop; main drains via tick.
+// _test_loop_high_freq_send: worker sends 10,000 messages in a tight loop; main drains via tick.
 // Verifies the wake_pending throttle prevents nbio queue overflow and all messages are received.
-@(test)
-test_loop_high_freq_send :: proc(t: ^testing.T) {
-	if !testing.expect(t, nbio.acquire_thread_event_loop() == nil, "failed to acquire event loop") {
+@(private)
+_test_loop_high_freq_send :: proc(t: ^testing.T, kind: nbio_mbox.Nbio_Wakeuper_Kind) {
+	if !testing.expect(
+		t,
+		nbio.acquire_thread_event_loop() == nil,
+		"failed to acquire event loop",
+	) {
 		return
 	}
 	defer nbio.release_thread_event_loop()
 	loop := nbio.current_thread_event_loop()
 
-	m, err := nbio_mbox.init_nbio_mbox(Msg, loop)
+	m, err := nbio_mbox.init_nbio_mbox(Msg, loop, kind)
 	if !testing.expect(t, err == .None, "init_nbio_mbox failed") {
 		return
 	}
@@ -185,10 +226,15 @@ test_loop_high_freq_send :: proc(t: ^testing.T) {
 	msgs := make([]Msg, _HF_N)
 	defer delete(msgs)
 	for i in 0 ..< _HF_N {
-		msgs[i] = Msg{data = i}
+		msgs[i] = Msg {
+			data = i,
+		}
 	}
 
-	ctx := _HF_Ctx{m = m, msgs = msgs}
+	ctx := _HF_Ctx {
+		m    = m,
+		msgs = msgs,
+	}
 	th := thread.create_and_start_with_data(&ctx, proc(data: rawptr) {
 		c := (^_HF_Ctx)(data)
 		for i in 0 ..< len(c.msgs) {
@@ -222,16 +268,26 @@ test_loop_high_freq_send :: proc(t: ^testing.T) {
 	testing.expect(t, received == _HF_N, "should receive all 10,000 messages")
 }
 
-// test_loop_double_close: close twice. First returns was_open=true, second false.
 @(test)
-test_loop_double_close :: proc(t: ^testing.T) {
-	if !testing.expect(t, nbio.acquire_thread_event_loop() == nil, "failed to acquire event loop") {
+test_loop_high_freq_send :: proc(t: ^testing.T) {
+	_test_loop_high_freq_send(t, .Timeout)
+	_test_loop_high_freq_send(t, .UDP)
+}
+
+// _test_loop_double_close: close twice. First returns was_open=true, second false.
+@(private)
+_test_loop_double_close :: proc(t: ^testing.T, kind: nbio_mbox.Nbio_Wakeuper_Kind) {
+	if !testing.expect(
+		t,
+		nbio.acquire_thread_event_loop() == nil,
+		"failed to acquire event loop",
+	) {
 		return
 	}
 	defer nbio.release_thread_event_loop()
 	loop := nbio.current_thread_event_loop()
 
-	m, err := nbio_mbox.init_nbio_mbox(Msg, loop)
+	m, err := nbio_mbox.init_nbio_mbox(Msg, loop, kind)
 	if !testing.expect(t, err == .None, "init_nbio_mbox failed") {
 		return
 	}
@@ -245,4 +301,10 @@ test_loop_double_close :: proc(t: ^testing.T) {
 
 	testing.expect(t, was_open1, "first close should return was_open=true")
 	testing.expect(t, !was_open2, "second close should return was_open=false")
+}
+
+@(test)
+test_loop_double_close :: proc(t: ^testing.T) {
+	_test_loop_double_close(t, .Timeout)
+	_test_loop_double_close(t, .UDP)
 }

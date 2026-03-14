@@ -6,11 +6,11 @@ when a message is sent from another thread.
 
 Two wake mechanisms are available via Nbio_Wakeuper_Kind:
 
-  .UDP (default) — A loopback UDP socket. The sender writes 1 byte; nbio wakes on
-      receipt. Stable on Linux, macOS, and Windows. No queue capacity limit.
+  .UDP (default) — A loopback UDP socket. The sender writes 1 byte; nbio wakes on receipt.
+      No queue capacity limit.
 
-  .Timeout — A zero-duration nbio timeout. Limited by the 128-slot cross-thread
-      queue; throttled with a CAS flag to prevent overflow under high-frequency sends.
+  .Timeout — A zero-duration nbio timeout. Works on all platforms.
+      Throttled with a CAS flag to prevent 128-slot cross-thread queue overflow.
 
 Thread model:
 

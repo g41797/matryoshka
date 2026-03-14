@@ -163,6 +163,10 @@ _udp_recv_cb :: proc(op: ^nbio.Operation, state: ^_UDP_State) {
 
 // _udp_close cancels the pending recv, closes both sockets, and frees state.
 // Must be called from the event-loop thread — nbio.remove panics cross-thread.
+//
+// nbio.tick(0) after remove drains any pending IOCP cancellation completion on
+// Windows before the sockets and state are freed. On Linux/macOS remove is truly
+// silent (callback never fires), so tick(0) is a no-op there.
 @(private)
 _udp_close :: proc(ctx: rawptr) {
 	if ctx == nil {
@@ -174,6 +178,7 @@ _udp_close :: proc(ctx: rawptr) {
 		nbio.remove(state.recv_op)
 		state.recv_op = nil
 	}
+	nbio.tick(0) // drain IOCP cancellation completion before freeing buffers
 	net.close(state.recv_sock)
 	net.close(state.send_sock)
 	free(state, state.allocator)
@@ -242,6 +247,8 @@ _init_udp_wakeup :: proc(
 // init_nbio_mbox allocates a try_mbox.Mbox wired to the nbio event loop.
 //
 // kind selects the wake mechanism (default: .UDP).
+// Use .Timeout if UDP sockets are unavailable or on Windows where IOCP
+// completion packets may interact unexpectedly with UDP at high speed.
 //
 // Returns (nil, .Invalid_Loop) if loop is nil.
 // Returns (nil, .Keepalive_Failed) if the Timeout wakeuper allocation fails.

@@ -1,3 +1,4 @@
+//+test
 package pool_tests
 
 import list "core:container/intrusive/list"
@@ -29,11 +30,17 @@ _fail_alloc :: proc(
 	old_memory: rawptr,
 	old_size: int,
 	loc := #caller_location,
-) -> (data: []byte, err: mem.Allocator_Error) {
+) -> (
+	data: []byte,
+	err: mem.Allocator_Error,
+) {
 	return nil, .Out_Of_Memory
 }
 
-failing_allocator :: mem.Allocator{procedure = _fail_alloc, data = nil}
+failing_allocator :: mem.Allocator {
+	procedure = _fail_alloc,
+	data      = nil,
+}
 
 // Counting_Alloc_Data tracks allocations for the counting allocator.
 Counting_Alloc_Data :: struct {
@@ -50,7 +57,10 @@ _counting_alloc :: proc(
 	old_memory: rawptr,
 	old_size: int,
 	loc := #caller_location,
-) -> (data: []byte, err: mem.Allocator_Error) {
+) -> (
+	data: []byte,
+	err: mem.Allocator_Error,
+) {
 	d := (^Counting_Alloc_Data)(allocator_data)
 	if mode == .Alloc || mode == .Alloc_Non_Zeroed {
 		if d.count >= d.max {
@@ -191,7 +201,7 @@ test_pool_closed_put :: proc(t: ^testing.T) {
 	// Simulate a pool-owned message by setting allocator manually.
 	msg := new(Test_Msg)
 	msg.allocator = p.allocator // mark as pool-owned so put doesn't treat it as foreign
-	pool_pkg.put(&p, msg)      // pool is closed — frees msg, returns nil
+	pool_pkg.put(&p, msg) // pool is closed — frees msg, returns nil
 
 	testing.expect(t, p.curr_msgs == 0, "curr_msgs should stay 0 after put on closed pool")
 }
@@ -295,8 +305,14 @@ test_pool_init_oom_immediate :: proc(t: ^testing.T) {
 
 @(test)
 test_pool_init_oom_partial :: proc(t: ^testing.T) {
-	data := Counting_Alloc_Data{max = 2, backing = context.allocator}
-	counting := mem.Allocator{procedure = _counting_alloc, data = &data}
+	data := Counting_Alloc_Data {
+		max     = 2,
+		backing = context.allocator,
+	}
+	counting := mem.Allocator {
+		procedure = _counting_alloc,
+		data      = &data,
+	}
 
 	p: pool_pkg.Pool(Test_Msg)
 	ok, status := pool_pkg.init(&p, initial_msgs = 4, reset = nil, allocator = counting)
@@ -368,7 +384,11 @@ test_pool_reset_not_on_fresh :: proc(t: ^testing.T) {
 	msg, _ := pool_pkg.get(&p) // fresh allocation — reset must NOT be called
 	testing.expect(t, msg != nil, "get should return non-nil")
 	if msg != nil {
-		testing.expect(t, msg.data == 0, "reset should NOT be called for fresh allocation (data must stay 0)")
+		testing.expect(
+			t,
+			msg.data == 0,
+			"reset should NOT be called for fresh allocation (data must stay 0)",
+		)
 		free(msg, msg.allocator)
 	}
 }
@@ -423,8 +443,8 @@ test_pool_get_timeout_zero :: proc(t: ^testing.T) {
 test_pool_waker_wakes_on_put :: proc(t: ^testing.T) {
 	woke: sync.Sema
 	waker := wakeup_pkg.WakeUper {
-		ctx   = rawptr(&woke),
-		wake  = proc(ctx: rawptr) {sync.sema_post((^sync.Sema)(ctx))},
+		ctx = rawptr(&woke),
+		wake = proc(ctx: rawptr) {sync.sema_post((^sync.Sema)(ctx))},
 		close = proc(ctx: rawptr) {},
 	}
 
@@ -450,8 +470,8 @@ test_pool_waker_wakes_on_put :: proc(t: ^testing.T) {
 test_pool_waker_close_on_destroy :: proc(t: ^testing.T) {
 	closed: bool
 	waker := wakeup_pkg.WakeUper {
-		ctx   = rawptr(&closed),
-		wake  = proc(ctx: rawptr) {},
+		ctx = rawptr(&closed),
+		wake = proc(ctx: rawptr) {},
 		close = proc(ctx: rawptr) {(^bool)(ctx)^ = true},
 	}
 
@@ -478,7 +498,11 @@ test_pool_reinit_active :: proc(t: ^testing.T) {
 	ok, status := pool_pkg.init(&p, initial_msgs = 5, reset = nil)
 	testing.expect(t, !ok, "re-init on active pool should fail")
 	testing.expect(t, status == .Closed, "status should be .Closed for re-init on active pool")
-	testing.expect(t, p.curr_msgs == 3, "existing messages should be unaffected after rejected re-init")
+	testing.expect(
+		t,
+		p.curr_msgs == 3,
+		"existing messages should be unaffected after rejected re-init",
+	)
 }
 
 // test_pool_length: length reflects free-list size after init, get, and put.

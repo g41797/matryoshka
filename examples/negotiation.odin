@@ -35,7 +35,7 @@ _Worker :: struct {
 // - Loop receives the request. Reuses it as the reply (increments data, sends back).
 // - Worker receives the reply and frees it.
 // - One allocation per round-trip. Worker owns the memory start to finish.
-negotiation_example :: proc() -> bool {
+negotiation_example :: proc(kind: nbio_mbox.Nbio_Wakeuper_Kind = .UDP) -> bool {
 	err := nbio.acquire_thread_event_loop()
 	if err != nil {
 		return false
@@ -45,7 +45,7 @@ negotiation_example :: proc() -> bool {
 	loop := nbio.current_thread_event_loop()
 
 	// loop_mb receives requests from the worker.
-	loop_mb, init_err := nbio_mbox.init_nbio_mbox(Msg, loop)
+	loop_mb, init_err := nbio_mbox.init_nbio_mbox(Msg, loop, kind)
 	if init_err != .None {
 		return false
 	}

@@ -1,5 +1,5 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 g41797
-// SPDX-License-Identifier: MIT
+//+test
+
 
 package pool_tests
 
@@ -94,15 +94,21 @@ test_pool_get_timeout_put_wakes :: proc(t: ^testing.T) {
 		return
 	}
 
-	ctx := _Put_Wakes_Ctx{pool = &p, msg = msg}
+	ctx := _Put_Wakes_Ctx {
+		pool = &p,
+		msg  = msg,
+	}
 
-	th := thread.create_and_start_with_data(&ctx, proc(data: rawptr) {
+	th := thread.create_and_start_with_data(
+	&ctx,
+	proc(data: rawptr) {
 		c := (^_Put_Wakes_Ctx)(data)
 		// Signal the waiter that we're ready, then put the message back.
 		sync.sema_post(&c.ready)
 		time.sleep(5 * time.Millisecond)
 		pool_pkg.put(c.pool, c.msg)
-	})
+	},
+	)
 
 	// Wait until the thread is running, then block on get with a long timeout.
 	sync.sema_wait(&ctx.ready)
@@ -122,15 +128,20 @@ test_pool_get_timeout_destroy_wakes :: proc(t: ^testing.T) {
 	p: pool_pkg.Pool(Test_Msg)
 	pool_pkg.init(&p, reset = nil)
 
-	ctx := _Destroy_Wakes_Ctx{pool = &p}
+	ctx := _Destroy_Wakes_Ctx {
+		pool = &p,
+	}
 
-	th := thread.create_and_start_with_data(&ctx, proc(data: rawptr) {
+	th := thread.create_and_start_with_data(
+	&ctx,
+	proc(data: rawptr) {
 		c := (^_Destroy_Wakes_Ctx)(data)
 		// Signal the waiter that we're running, then destroy the pool.
 		sync.sema_post(&c.ready)
 		time.sleep(5 * time.Millisecond)
 		pool_pkg.destroy(c.pool)
-	})
+	},
+	)
 
 	// Wait until the thread is running, then block on get with infinite timeout.
 	sync.sema_wait(&ctx.ready)
@@ -158,7 +169,12 @@ test_pool_many_waiters_partial_fill :: proc(t: ^testing.T) {
 	threads: [N]^thread.Thread
 
 	for i in 0 ..< N {
-		ctxs[i] = _N_Pool_Ctx{pool = &p, idx = i, started = &started, done = &done}
+		ctxs[i] = _N_Pool_Ctx {
+			pool    = &p,
+			idx     = i,
+			started = &started,
+			done    = &done,
+		}
 		threads[i] = thread.create_and_start_with_data(&ctxs[i], proc(data: rawptr) {
 			c := (^_N_Pool_Ctx)(data)
 			sync.sema_post(c.started)
@@ -222,7 +238,12 @@ test_pool_destroy_wakes_all :: proc(t: ^testing.T) {
 	threads: [N]^thread.Thread
 
 	for i in 0 ..< N {
-		ctxs[i] = _N_Pool_Ctx{pool = &p, idx = i, started = &started, done = &done}
+		ctxs[i] = _N_Pool_Ctx {
+			pool    = &p,
+			idx     = i,
+			started = &started,
+			done    = &done,
+		}
 		threads[i] = thread.create_and_start_with_data(&ctxs[i], proc(data: rawptr) {
 			c := (^_N_Pool_Ctx)(data)
 			sync.sema_post(c.started)
@@ -274,7 +295,11 @@ test_pool_stress_high_volume :: proc(t: ^testing.T) {
 	threads: [N]^thread.Thread
 
 	for i in 0 ..< N {
-		ctxs[i] = _Stress_Ctx{pool = &p, start = &start, done = &done}
+		ctxs[i] = _Stress_Ctx {
+			pool  = &p,
+			start = &start,
+			done  = &done,
+		}
 		threads[i] = thread.create_and_start_with_data(&ctxs[i], proc(data: rawptr) {
 			c := (^_Stress_Ctx)(data)
 			sync.sema_wait(c.start)
@@ -316,7 +341,11 @@ test_pool_max_limit_racing :: proc(t: ^testing.T) {
 	threads: [N]^thread.Thread
 
 	for i in 0 ..< N {
-		ctxs[i] = _Max_Race_Ctx{pool = &p, start = &start, done = &done}
+		ctxs[i] = _Max_Race_Ctx {
+			pool  = &p,
+			start = &start,
+			done  = &done,
+		}
 		threads[i] = thread.create_and_start_with_data(&ctxs[i], proc(data: rawptr) {
 			c := (^_Max_Race_Ctx)(data)
 			sync.sema_wait(c.start)
@@ -339,7 +368,11 @@ test_pool_max_limit_racing :: proc(t: ^testing.T) {
 		thread.destroy(threads[i])
 	}
 
-	testing.expect(t, p.curr_msgs <= 3, "curr_msgs should not exceed max_msgs after concurrent puts")
+	testing.expect(
+		t,
+		p.curr_msgs <= 3,
+		"curr_msgs should not exceed max_msgs after concurrent puts",
+	)
 	pool_pkg.destroy(&p)
 }
 
@@ -357,7 +390,11 @@ test_pool_shutdown_race :: proc(t: ^testing.T) {
 	threads: [N]^thread.Thread
 
 	for i in 0 ..< N {
-		ctxs[i] = _Shutdown_Ctx{pool = &p, start = &start, done = &done}
+		ctxs[i] = _Shutdown_Ctx {
+			pool  = &p,
+			start = &start,
+			done  = &done,
+		}
 		threads[i] = thread.create_and_start_with_data(&ctxs[i], proc(data: rawptr) {
 			c := (^_Shutdown_Ctx)(data)
 			sync.sema_wait(c.start)
@@ -402,7 +439,10 @@ test_pool_idempotent_destroy :: proc(t: ^testing.T) {
 	threads: [N]^thread.Thread
 
 	for i in 0 ..< N {
-		ctxs[i] = _Idempotent_Ctx{pool = &p, start = &start}
+		ctxs[i] = _Idempotent_Ctx {
+			pool  = &p,
+			start = &start,
+		}
 		threads[i] = thread.create_and_start_with_data(&ctxs[i], proc(data: rawptr) {
 			c := (^_Idempotent_Ctx)(data)
 			sync.sema_wait(c.start)
@@ -426,8 +466,14 @@ test_pool_idempotent_destroy :: proc(t: ^testing.T) {
 // new/free calls, never falling back to context.allocator.
 @(test)
 test_pool_allocator_integrity :: proc(t: ^testing.T) {
-	data := Counting_Alloc_Data{max = 10, backing = context.allocator}
-	counting := mem.Allocator{procedure = _counting_alloc, data = &data}
+	data := Counting_Alloc_Data {
+		max     = 10,
+		backing = context.allocator,
+	}
+	counting := mem.Allocator {
+		procedure = _counting_alloc,
+		data      = &data,
+	}
 
 	p: pool_pkg.Pool(Test_Msg)
 	pool_pkg.init(&p, initial_msgs = 3, reset = nil, allocator = counting)

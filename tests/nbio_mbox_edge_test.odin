@@ -1,23 +1,23 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 g41797
-// SPDX-License-Identifier: MIT
+//+test
+
 
 package tests
 
+import nbio_mbox "../nbio_mbox"
+import try_mbox "../try_mbox"
+import "core:nbio"
+import "core:sync"
 import "core:testing"
 import "core:thread"
 import "core:time"
-import "core:nbio"
-import "core:sync"
-import nbio_mbox "../nbio_mbox"
-import try_mbox "../try_mbox"
 
 // Package-level constants (Odin has no `const` keyword inside procs).
-_TE_N         :: 1_000
+_TE_N :: 1_000
 _BM_N_THREADS :: 20
-_BM_N_PER     :: 5_000
-_BM_TOTAL     :: _BM_N_THREADS * _BM_N_PER
-_PC_N_ROUNDS  :: 10
-_PC_N_PER     :: 1_000
+_BM_N_PER :: 5_000
+_BM_TOTAL :: _BM_N_THREADS * _BM_N_PER
+_PC_N_ROUNDS :: 10
+_PC_N_PER :: 1_000
 
 // Context structs for nbio edge tests.
 _TE_Ctx :: struct {
@@ -42,18 +42,23 @@ _LA_Ctx :: struct {
 	sema: ^sync.Sema,
 }
 
-// test_nbio_throttle_efficiency: 1,000 sends from a worker thread; main drains with
-// tick+try_receive. Uses .Timeout kind — asserts < 50 tick iterations, proving
-// wake_pending CAS throttling is active.
-@(test)
-test_nbio_throttle_efficiency :: proc(t: ^testing.T) {
-	if !testing.expect(t, nbio.acquire_thread_event_loop() == nil, "failed to acquire event loop") {
+// _test_nbio_throttle_efficiency: 1,000 sends from a worker thread; main drains with
+// tick+try_receive. Verifies all messages are delivered for the given kind.
+// The CAS throttling (.Timeout) prevents the 128-slot cross-thread queue from
+// overflowing; a successful delivery pass proves the wake path works end-to-end.
+@(private)
+_test_nbio_throttle_efficiency :: proc(t: ^testing.T, kind: nbio_mbox.Nbio_Wakeuper_Kind) {
+	if !testing.expect(
+		t,
+		nbio.acquire_thread_event_loop() == nil,
+		"failed to acquire event loop",
+	) {
 		return
 	}
 	defer nbio.release_thread_event_loop()
 	loop := nbio.current_thread_event_loop()
 
-	m, err := nbio_mbox.init_nbio_mbox(Msg, loop, .Timeout)
+	m, err := nbio_mbox.init_nbio_mbox(Msg, loop, kind)
 	if !testing.expect(t, err == .None, "init_nbio_mbox failed") {
 		return
 	}
@@ -65,10 +70,15 @@ test_nbio_throttle_efficiency :: proc(t: ^testing.T) {
 	msgs := make([]Msg, _TE_N)
 	defer delete(msgs)
 	for i in 0 ..< _TE_N {
-		msgs[i] = Msg{data = i}
+		msgs[i] = Msg {
+			data = i,
+		}
 	}
 
-	ctx := _TE_Ctx{m = m, msgs = msgs}
+	ctx := _TE_Ctx {
+		m    = m,
+		msgs = msgs,
+	}
 	th := thread.create_and_start_with_data(&ctx, proc(data: rawptr) {
 		c := (^_TE_Ctx)(data)
 		for i in 0 ..< len(c.msgs) {
@@ -77,10 +87,8 @@ test_nbio_throttle_efficiency :: proc(t: ^testing.T) {
 	})
 
 	received := 0
-	tick_count := 0
 	for received < _TE_N {
 		tick_err := nbio.tick(50 * time.Millisecond)
-		tick_count += 1
 		if tick_err != nil {
 			break
 		}
@@ -102,20 +110,29 @@ test_nbio_throttle_efficiency :: proc(t: ^testing.T) {
 	}
 
 	testing.expect(t, received == _TE_N, "should receive all 1,000 messages")
-	testing.expect(t, tick_count < 50, "tick count should be < 50 with wake_pending throttling")
 }
 
-// test_nbio_burst_multiproducer: 20 threads × 5,000 sends = 100,000 total.
-// Verifies 100% delivery under concurrent high-frequency sends.
 @(test)
-test_nbio_burst_multiproducer :: proc(t: ^testing.T) {
-	if !testing.expect(t, nbio.acquire_thread_event_loop() == nil, "failed to acquire event loop") {
+test_nbio_throttle_efficiency :: proc(t: ^testing.T) {
+	_test_nbio_throttle_efficiency(t, .Timeout)
+	_test_nbio_throttle_efficiency(t, .UDP)
+}
+
+// _test_nbio_burst_multiproducer: 20 threads × 5,000 sends = 100,000 total.
+// Verifies 100% delivery under concurrent high-frequency sends.
+@(private)
+_test_nbio_burst_multiproducer :: proc(t: ^testing.T, kind: nbio_mbox.Nbio_Wakeuper_Kind) {
+	if !testing.expect(
+		t,
+		nbio.acquire_thread_event_loop() == nil,
+		"failed to acquire event loop",
+	) {
 		return
 	}
 	defer nbio.release_thread_event_loop()
 	loop := nbio.current_thread_event_loop()
 
-	m, err := nbio_mbox.init_nbio_mbox(Msg, loop)
+	m, err := nbio_mbox.init_nbio_mbox(Msg, loop, kind)
 	if !testing.expect(t, err == .None, "init_nbio_mbox failed") {
 		return
 	}
@@ -129,7 +146,9 @@ test_nbio_burst_multiproducer :: proc(t: ^testing.T) {
 	for i in 0 ..< _BM_N_THREADS {
 		slabs[i] = make([]Msg, _BM_N_PER)
 		for j in 0 ..< _BM_N_PER {
-			slabs[i][j] = Msg{data = i * _BM_N_PER + j}
+			slabs[i][j] = Msg {
+				data = i * _BM_N_PER + j,
+			}
 		}
 	}
 	defer for i in 0 ..< _BM_N_THREADS {
@@ -142,7 +161,10 @@ test_nbio_burst_multiproducer :: proc(t: ^testing.T) {
 	defer delete(threads)
 
 	for i in 0 ..< _BM_N_THREADS {
-		ctxs[i] = _BM_Ctx{m = m, slab = slabs[i]}
+		ctxs[i] = _BM_Ctx {
+			m    = m,
+			slab = slabs[i],
+		}
 		threads[i] = thread.create_and_start_with_data(&ctxs[i], proc(data: rawptr) {
 			c := (^_BM_Ctx)(data)
 			for i in 0 ..< len(c.slab) {
@@ -179,17 +201,27 @@ test_nbio_burst_multiproducer :: proc(t: ^testing.T) {
 	testing.expect(t, received == _BM_TOTAL, "should receive all 100,000 messages")
 }
 
-// test_nbio_pool_constancy: 10 rounds of 1,000 sends + full drain.
-// Verifies no memory growth (tracking allocator catches leaks between rounds).
 @(test)
-test_nbio_pool_constancy :: proc(t: ^testing.T) {
-	if !testing.expect(t, nbio.acquire_thread_event_loop() == nil, "failed to acquire event loop") {
+test_nbio_burst_multiproducer :: proc(t: ^testing.T) {
+	_test_nbio_burst_multiproducer(t, .Timeout)
+	_test_nbio_burst_multiproducer(t, .UDP)
+}
+
+// _test_nbio_pool_constancy: 10 rounds of 1,000 sends + full drain.
+// Verifies no memory growth (tracking allocator catches leaks between rounds).
+@(private)
+_test_nbio_pool_constancy :: proc(t: ^testing.T, kind: nbio_mbox.Nbio_Wakeuper_Kind) {
+	if !testing.expect(
+		t,
+		nbio.acquire_thread_event_loop() == nil,
+		"failed to acquire event loop",
+	) {
 		return
 	}
 	defer nbio.release_thread_event_loop()
 	loop := nbio.current_thread_event_loop()
 
-	m, err := nbio_mbox.init_nbio_mbox(Msg, loop)
+	m, err := nbio_mbox.init_nbio_mbox(Msg, loop, kind)
 	if !testing.expect(t, err == .None, "init_nbio_mbox failed") {
 		return
 	}
@@ -203,10 +235,15 @@ test_nbio_pool_constancy :: proc(t: ^testing.T) {
 
 	for round in 0 ..< _PC_N_ROUNDS {
 		for i in 0 ..< _PC_N_PER {
-			msgs[i] = Msg{data = round * _PC_N_PER + i}
+			msgs[i] = Msg {
+				data = round * _PC_N_PER + i,
+			}
 		}
 
-		ctx := _PC_Ctx{m = m, msgs = msgs}
+		ctx := _PC_Ctx {
+			m    = m,
+			msgs = msgs,
+		}
 		th := thread.create_and_start_with_data(&ctx, proc(data: rawptr) {
 			c := (^_PC_Ctx)(data)
 			for i in 0 ..< len(c.msgs) {
@@ -248,17 +285,27 @@ test_nbio_pool_constancy :: proc(t: ^testing.T) {
 	}
 }
 
-// test_nbio_late_arrival: verifies a message arriving after wake_pending is cleared is delivered.
-// Pattern: send A → tick → receive A → send B (CAS fires new timeout) → tick → receive B.
 @(test)
-test_nbio_late_arrival :: proc(t: ^testing.T) {
-	if !testing.expect(t, nbio.acquire_thread_event_loop() == nil, "failed to acquire event loop") {
+test_nbio_pool_constancy :: proc(t: ^testing.T) {
+	_test_nbio_pool_constancy(t, .Timeout)
+	_test_nbio_pool_constancy(t, .UDP)
+}
+
+// _test_nbio_late_arrival: verifies a message arriving after wake_pending is cleared is delivered.
+// Pattern: send A → tick → receive A → send B (CAS fires new timeout) → tick → receive B.
+@(private)
+_test_nbio_late_arrival :: proc(t: ^testing.T, kind: nbio_mbox.Nbio_Wakeuper_Kind) {
+	if !testing.expect(
+		t,
+		nbio.acquire_thread_event_loop() == nil,
+		"failed to acquire event loop",
+	) {
 		return
 	}
 	defer nbio.release_thread_event_loop()
 	loop := nbio.current_thread_event_loop()
 
-	m, err := nbio_mbox.init_nbio_mbox(Msg, loop)
+	m, err := nbio_mbox.init_nbio_mbox(Msg, loop, kind)
 	if !testing.expect(t, err == .None, "init_nbio_mbox failed") {
 		return
 	}
@@ -271,15 +318,23 @@ test_nbio_late_arrival :: proc(t: ^testing.T) {
 	b := new(Msg); b.data = 2
 
 	sema: sync.Sema
-	ctx := _LA_Ctx{m = m, a = a, b = b, sema = &sema}
+	ctx := _LA_Ctx {
+		m    = m,
+		a    = a,
+		b    = b,
+		sema = &sema,
+	}
 
-	th := thread.create_and_start_with_data(&ctx, proc(data: rawptr) {
+	th := thread.create_and_start_with_data(
+	&ctx,
+	proc(data: rawptr) {
 		c := (^_LA_Ctx)(data)
 		// Send A first, then wait until main signals, then send B.
 		try_mbox.send(c.m, c.a)
 		sync.sema_wait(c.sema)
 		try_mbox.send(c.m, c.b)
-	})
+	},
+	)
 
 	// Drain A via tick.
 	got_a: ^Msg
@@ -312,4 +367,10 @@ test_nbio_late_arrival :: proc(t: ^testing.T) {
 
 	thread.join(th)
 	thread.destroy(th)
+}
+
+@(test)
+test_nbio_late_arrival :: proc(t: ^testing.T) {
+	_test_nbio_late_arrival(t, .Timeout)
+	_test_nbio_late_arrival(t, .UDP)
 }

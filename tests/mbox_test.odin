@@ -1,12 +1,13 @@
+//+test
 package tests
 
+import mbox "../mbox"
 import "base:intrinsics"
+import list "core:container/intrusive/list"
+import "core:sync"
 import "core:testing"
 import "core:thread"
 import "core:time"
-import "core:sync"
-import list "core:container/intrusive/list"
-import mbox "../mbox"
 
 // Msg is the local test message type.
 Msg :: struct {
@@ -70,7 +71,11 @@ test_timeout_on_empty :: proc(t: ^testing.T) {
 test_zero_timeout :: proc(t: ^testing.T) {
 	mb: mbox.Mailbox(Msg)
 	_, err := mbox.wait_receive(&mb, 0)
-	testing.expect(t, err == .Timeout, "wait_receive with timeout=0 should return .Timeout immediately")
+	testing.expect(
+		t,
+		err == .Timeout,
+		"wait_receive with timeout=0 should return .Timeout immediately",
+	)
 }
 
 @(test)
@@ -91,11 +96,16 @@ test_close_wakes_waiter :: proc(t: ^testing.T) {
 	done: sync.Sema
 
 	// Start a waiter thread.
-	thread.run_with_poly_data3(&mb, &result, &done, proc(mb: ^mbox.Mailbox(Msg), result: ^mbox.Mailbox_Error, done: ^sync.Sema) {
-		_, err := mbox.wait_receive(mb)
-		result^ = err
-		sync.sema_post(done)
-	})
+	thread.run_with_poly_data3(
+		&mb,
+		&result,
+		&done,
+		proc(mb: ^mbox.Mailbox(Msg), result: ^mbox.Mailbox_Error, done: ^sync.Sema) {
+			_, err := mbox.wait_receive(mb)
+			result^ = err
+			sync.sema_post(done)
+		},
+	)
 
 	time.sleep(10 * time.Millisecond)
 	_, _ = mbox.close(&mb)
@@ -140,11 +150,16 @@ test_interrupt_wakes_waiter :: proc(t: ^testing.T) {
 	done: sync.Sema
 
 	// Start a waiter thread.
-	thread.run_with_poly_data3(&mb, &result, &done, proc(mb: ^mbox.Mailbox(Msg), result: ^mbox.Mailbox_Error, done: ^sync.Sema) {
-		_, err := mbox.wait_receive(mb)
-		result^ = err
-		sync.sema_post(done)
-	})
+	thread.run_with_poly_data3(
+		&mb,
+		&result,
+		&done,
+		proc(mb: ^mbox.Mailbox(Msg), result: ^mbox.Mailbox_Error, done: ^sync.Sema) {
+			_, err := mbox.wait_receive(mb)
+			result^ = err
+			sync.sema_post(done)
+		},
+	)
 
 	// Wait a bit so the thread is actually waiting.
 	time.sleep(10 * time.Millisecond)
@@ -189,7 +204,11 @@ test_reuse_via_zero :: proc(t: ^testing.T) {
 	testing.expect(t, ok, "send after reinitialization should succeed")
 
 	got, err2 := mbox.wait_receive(&mb, 0)
-	testing.expect(t, err2 == .None && got != nil && got.data == 7, "wait_receive should return message")
+	testing.expect(
+		t,
+		err2 == .None && got != nil && got.data == 7,
+		"wait_receive should return message",
+	)
 	if got != nil {free(got)}
 }
 
@@ -253,7 +272,10 @@ test_many_waiters_wake_on_close :: proc(t: ^testing.T) {
 	threads: [N]^thread.Thread
 
 	for i in 0 ..< N {
-		ctxs[i] = _Multi_Waiter_Ctx{mb = &mb, done = &done}
+		ctxs[i] = _Multi_Waiter_Ctx {
+			mb   = &mb,
+			done = &done,
+		}
 		threads[i] = thread.create_and_start_with_data(&ctxs[i], proc(data: rawptr) {
 			c := (^_Multi_Waiter_Ctx)(data)
 			_, c.result = mbox.wait_receive(c.mb)
@@ -287,7 +309,10 @@ test_many_waiters_one_message :: proc(t: ^testing.T) {
 	threads: [N]^thread.Thread
 
 	for i in 0 ..< N {
-		ctxs[i] = _Multi_Waiter_Ctx{mb = &mb, done = &done}
+		ctxs[i] = _Multi_Waiter_Ctx {
+			mb   = &mb,
+			done = &done,
+		}
 		threads[i] = thread.create_and_start_with_data(&ctxs[i], proc(data: rawptr) {
 			c := (^_Multi_Waiter_Ctx)(data)
 			_, c.result = mbox.wait_receive(c.mb)
@@ -301,7 +326,7 @@ test_many_waiters_one_message :: proc(t: ^testing.T) {
 	mbox.send(&mb, &msgs[0])
 
 	sync.sema_wait(&done) // wait for the 1 thread that got the message
-	mbox.close(&mb)       // wake the remaining 4
+	mbox.close(&mb) // wake the remaining 4
 
 	for _ in 0 ..< 4 {
 		sync.sema_wait(&done)
@@ -336,7 +361,10 @@ test_many_waiters_one_interrupt :: proc(t: ^testing.T) {
 	threads: [N]^thread.Thread
 
 	for i in 0 ..< N {
-		ctxs[i] = _Multi_Waiter_Ctx{mb = &mb, done = &done}
+		ctxs[i] = _Multi_Waiter_Ctx {
+			mb   = &mb,
+			done = &done,
+		}
 		threads[i] = thread.create_and_start_with_data(&ctxs[i], proc(data: rawptr) {
 			c := (^_Multi_Waiter_Ctx)(data)
 			_, c.result = mbox.wait_receive(c.mb)
@@ -348,7 +376,7 @@ test_many_waiters_one_interrupt :: proc(t: ^testing.T) {
 	mbox.interrupt(&mb)
 
 	sync.sema_wait(&done) // wait for the 1 thread that got .Interrupted
-	mbox.close(&mb)       // wake the remaining 4
+	mbox.close(&mb) // wake the remaining 4
 
 	for _ in 0 ..< 4 {
 		sync.sema_wait(&done)
@@ -391,7 +419,10 @@ test_heavy_racing :: proc(t: ^testing.T) {
 	recv_threads: [N_RECEIVERS]^thread.Thread
 
 	for i in 0 ..< N_SENDERS {
-		sender_ctxs[i] = _Sender_Ctx{mb = &mb, msgs = msgs[i * 100:(i + 1) * 100]}
+		sender_ctxs[i] = _Sender_Ctx {
+			mb   = &mb,
+			msgs = msgs[i * 100:(i + 1) * 100],
+		}
 		sender_threads[i] = thread.create_and_start_with_data(&sender_ctxs[i], proc(data: rawptr) {
 			c := (^_Sender_Ctx)(data)
 			for j in 0 ..< len(c.msgs) {
@@ -401,7 +432,10 @@ test_heavy_racing :: proc(t: ^testing.T) {
 	}
 
 	for i in 0 ..< N_RECEIVERS {
-		recv_ctxs[i] = _Receiver_Ctx{mb = &mb, received = &received}
+		recv_ctxs[i] = _Receiver_Ctx {
+			mb       = &mb,
+			received = &received,
+		}
 		recv_threads[i] = thread.create_and_start_with_data(&recv_ctxs[i], proc(data: rawptr) {
 			c := (^_Receiver_Ctx)(data)
 			for intrinsics.atomic_load(c.received) < 1000 {
