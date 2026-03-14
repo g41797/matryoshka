@@ -23,11 +23,14 @@ ols.json
 # Design working documents
 design/loop-mbox-enhancement.md
 
+# Claude working notes
+claude2fix.md
+
 # Local Session Data
 mailbox_init.md
 design/STATUS.md
 design/heap-pool-plan.md
-# last_plan.md
+last_plan.md
 welcomed_tests.md
 
 # Documentation tools

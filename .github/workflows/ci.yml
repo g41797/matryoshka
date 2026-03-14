@@ -35,6 +35,87 @@ jobs:
             odin build . -build-mode:lib -vet -strict-style -o:${{ matrix.opt }}
           fi
 
+      - name: Build mbox lib
+        shell: bash
+        run: |
+          if [ "${{ matrix.opt }}" = "none" ]; then
+            odin build ./mbox/ -build-mode:lib -vet -strict-style -o:none -debug
+          else
+            odin build ./mbox/ -build-mode:lib -vet -strict-style -o:${{ matrix.opt }}
+          fi
+
+      - name: Build mpsc lib
+        shell: bash
+        run: |
+          if [ "${{ matrix.opt }}" = "none" ]; then
+            odin build ./mpsc/ -build-mode:lib -vet -strict-style -o:none -debug
+          else
+            odin build ./mpsc/ -build-mode:lib -vet -strict-style -o:${{ matrix.opt }}
+          fi
+
+      - name: Test mpsc
+        shell: bash
+        run: |
+          if [ "${{ matrix.opt }}" = "none" ]; then
+            odin test ./mpsc/ -vet -strict-style -disallow-do -o:none -debug
+          else
+            odin test ./mpsc/ -vet -strict-style -disallow-do -o:${{ matrix.opt }}
+          fi
+
+      - name: Build wakeup lib
+        shell: bash
+        run: |
+          if [ "${{ matrix.opt }}" = "none" ]; then
+            odin build ./wakeup/ -build-mode:lib -vet -strict-style -o:none -debug
+          else
+            odin build ./wakeup/ -build-mode:lib -vet -strict-style -o:${{ matrix.opt }}
+          fi
+
+      - name: Test wakeup
+        shell: bash
+        run: |
+          if [ "${{ matrix.opt }}" = "none" ]; then
+            odin test ./wakeup/ -vet -strict-style -disallow-do -o:none -debug
+          else
+            odin test ./wakeup/ -vet -strict-style -disallow-do -o:${{ matrix.opt }}
+          fi
+
+      - name: Build try_mbox lib
+        shell: bash
+        run: |
+          if [ "${{ matrix.opt }}" = "none" ]; then
+            odin build ./try_mbox/ -build-mode:lib -vet -strict-style -o:none -debug
+          else
+            odin build ./try_mbox/ -build-mode:lib -vet -strict-style -o:${{ matrix.opt }}
+          fi
+
+      - name: Test try_mbox
+        shell: bash
+        run: |
+          if [ "${{ matrix.opt }}" = "none" ]; then
+            odin test ./try_mbox/ -vet -strict-style -disallow-do -o:none -debug
+          else
+            odin test ./try_mbox/ -vet -strict-style -disallow-do -o:${{ matrix.opt }}
+          fi
+
+      - name: Build nbio_mbox lib
+        shell: bash
+        run: |
+          if [ "${{ matrix.opt }}" = "none" ]; then
+            odin build ./nbio_mbox/ -build-mode:lib -vet -strict-style -o:none -debug
+          else
+            odin build ./nbio_mbox/ -build-mode:lib -vet -strict-style -o:${{ matrix.opt }}
+          fi
+
+      - name: Test nbio_mbox
+        shell: bash
+        run: |
+          if [ "${{ matrix.opt }}" = "none" ]; then
+            odin test ./nbio_mbox/ -vet -strict-style -disallow-do -o:none -debug
+          else
+            odin test ./nbio_mbox/ -vet -strict-style -disallow-do -o:${{ matrix.opt }}
+          fi
+
       - name: Build pool lib
         shell: bash
         run: |
@@ -84,6 +165,11 @@ jobs:
         shell: bash
         run: |
           odin doc ./
+          odin doc ./mbox/
+          odin doc ./mpsc/
+          odin doc ./wakeup/
+          odin doc ./try_mbox/
+          odin doc ./nbio_mbox/
           odin doc ./pool/
           odin doc ./pool_tests/
           odin doc ./examples/
@@ -95,6 +181,11 @@ jobs:
         run: |
           mkdir -p doc-out
           odin doc ./            > doc-out/mbox.txt
+          odin doc ./mbox/       > doc-out/mbox_pkg.txt
+          odin doc ./mpsc/       > doc-out/mpsc.txt
+          odin doc ./wakeup/     > doc-out/wakeup.txt
+          odin doc ./try_mbox/   > doc-out/try_mbox.txt
+          odin doc ./nbio_mbox/  > doc-out/nbio_mbox.txt
           odin doc ./pool/       > doc-out/pool.txt
           odin doc ./pool_tests/ > doc-out/pool_tests.txt
           odin doc ./examples/   > doc-out/examples.txt

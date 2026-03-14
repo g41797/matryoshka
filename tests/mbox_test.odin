@@ -6,7 +6,7 @@ import "core:thread"
 import "core:time"
 import "core:sync"
 import list "core:container/intrusive/list"
-import mbox ".."
+import mbox "../mbox"
 
 // Msg is the local test message type.
 Msg :: struct {

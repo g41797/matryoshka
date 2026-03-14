@@ -1,6 +1,7 @@
 package examples
 
-import mbox ".."
+import mbox "../mbox"
+import nbio_mbox "../nbio_mbox"
 import try_mbox "../try_mbox"
 import list "core:container/intrusive/list"
 import "core:mem"
@@ -44,7 +45,7 @@ negotiation_example :: proc() -> bool {
 	loop := nbio.current_thread_event_loop()
 
 	// loop_mb receives requests from the worker.
-	loop_mb, init_err := mbox.init_nbio_mbox(Msg, loop)
+	loop_mb, init_err := nbio_mbox.init_nbio_mbox(Msg, loop)
 	if init_err != .None {
 		return false
 	}

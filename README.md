@@ -87,7 +87,7 @@ The compiler checks this for you. If the field is missing, it won't compile.
 | Type | For | How it waits |
 |---|---|---|
 | `Mailbox($T)` | Worker threads | Blocks the thread until a message arrives. |
-| `Loop_Mailbox($T)` | nbio loops | Wakes the loop. Never blocks the thread. |
+| `try_mbox.Mbox($T)` | nbio loops | Wakes the loop. Never blocks the thread. Created by `init_nbio_mbox`. |
 
 Both are thread-safe. Both have zero allocations for sending or receiving.
 
@@ -161,20 +161,29 @@ Handle commands and I/O on one thread.
 A no-op makes wake-up work on all systems.
 
 ```odin
+import try_mbox "path/to/odin-mbox/try_mbox"
+
 // nbio loop (receiver thread):
 loop := nbio.current_thread_event_loop()
-mbox.init_loop_mailbox(&loop_mb, loop)
+m, _ := mbox.init_nbio_mbox(My_Msg, loop)
+defer {
+    remaining, _ := try_mbox.close(m)
+    for node := list.pop_front(&remaining); node != nil; node = list.pop_front(&remaining) {
+        free(container_of(node, My_Msg, "node"))
+    }
+    try_mbox.destroy(m)
+}
 
 for {
     nbio.tick() // process I/O and wake-up tasks
-    for msg, ok := mbox.try_receive_loop(&loop_mb); ok; msg, ok = mbox.try_receive_loop(&loop_mb) {
+    for msg, ok := try_mbox.try_receive(m); ok; msg, ok = try_mbox.try_receive(m) {
         // handle message, then free or return to pool
     }
 }
 
 // sender thread: allocate on heap, send.
 msg := new(My_Msg)
-mbox.send_to_loop(&loop_mb, msg)
+try_mbox.send(m, msg)
 ```
 
 ---

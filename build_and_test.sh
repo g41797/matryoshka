@@ -26,6 +26,69 @@ for opt in "${OPTS[@]}"; do
         odin build . -build-mode:lib -vet -strict-style -o:"${opt}"
     fi
 
+    echo "  build mbox lib..."
+    if [ "${opt}" = "none" ]; then
+        odin build ./mbox/ -build-mode:lib -vet -strict-style -o:none -debug
+    else
+        odin build ./mbox/ -build-mode:lib -vet -strict-style -o:"${opt}"
+    fi
+
+    echo "  build mpsc lib..."
+    if [ "${opt}" = "none" ]; then
+        odin build ./mpsc/ -build-mode:lib -vet -strict-style -o:none -debug
+    else
+        odin build ./mpsc/ -build-mode:lib -vet -strict-style -o:"${opt}"
+    fi
+
+    echo "  test mpsc/..."
+    if [ "${opt}" = "none" ]; then
+        odin test ./mpsc/ -vet -strict-style -disallow-do -o:none -debug
+    else
+        odin test ./mpsc/ -vet -strict-style -disallow-do -o:"${opt}"
+    fi
+
+    echo "  build wakeup lib..."
+    if [ "${opt}" = "none" ]; then
+        odin build ./wakeup/ -build-mode:lib -vet -strict-style -o:none -debug
+    else
+        odin build ./wakeup/ -build-mode:lib -vet -strict-style -o:"${opt}"
+    fi
+
+    echo "  test wakeup/..."
+    if [ "${opt}" = "none" ]; then
+        odin test ./wakeup/ -vet -strict-style -disallow-do -o:none -debug
+    else
+        odin test ./wakeup/ -vet -strict-style -disallow-do -o:"${opt}"
+    fi
+
+    echo "  build try_mbox lib..."
+    if [ "${opt}" = "none" ]; then
+        odin build ./try_mbox/ -build-mode:lib -vet -strict-style -o:none -debug
+    else
+        odin build ./try_mbox/ -build-mode:lib -vet -strict-style -o:"${opt}"
+    fi
+
+    echo "  test try_mbox/..."
+    if [ "${opt}" = "none" ]; then
+        odin test ./try_mbox/ -vet -strict-style -disallow-do -o:none -debug
+    else
+        odin test ./try_mbox/ -vet -strict-style -disallow-do -o:"${opt}"
+    fi
+
+    echo "  build nbio_mbox lib..."
+    if [ "${opt}" = "none" ]; then
+        odin build ./nbio_mbox/ -build-mode:lib -vet -strict-style -o:none -debug
+    else
+        odin build ./nbio_mbox/ -build-mode:lib -vet -strict-style -o:"${opt}"
+    fi
+
+    echo "  test nbio_mbox/..."
+    if [ "${opt}" = "none" ]; then
+        odin test ./nbio_mbox/ -vet -strict-style -disallow-do -o:none -debug
+    else
+        odin test ./nbio_mbox/ -vet -strict-style -disallow-do -o:"${opt}"
+    fi
+
     echo "  build pool lib..."
     if [ "${opt}" = "none" ]; then
         odin build ./pool/ -build-mode:lib -vet -strict-style -o:none -debug
@@ -67,6 +130,11 @@ done
 echo
 echo "${BLUE}--- doc smoke test ---${NC}"
 odin doc ./
+odin doc ./mbox/
+odin doc ./mpsc/
+odin doc ./wakeup/
+odin doc ./try_mbox/
+odin doc ./nbio_mbox/
 odin doc ./pool/
 odin doc ./pool_tests/
 odin doc ./examples/

@@ -12,7 +12,7 @@ Usage:
 	w := wakeup.sema_wakeup()
 	defer w.close(w.ctx)
 
-	// From another thread or goroutine:
+	// From another thread or coroutine:
 	w.wake(w.ctx)
 
 	// In the event loop — wait for wake:

@@ -8,7 +8,7 @@ import "core:thread"
 import "core:time"
 import "core:nbio"
 import "core:sync"
-import mbox ".."
+import nbio_mbox "../nbio_mbox"
 import try_mbox "../try_mbox"
 
 // Package-level constants (Odin has no `const` keyword inside procs).
@@ -43,7 +43,8 @@ _LA_Ctx :: struct {
 }
 
 // test_nbio_throttle_efficiency: 1,000 sends from a worker thread; main drains with
-// tick+try_receive. Asserts < 50 tick iterations, proving wake_pending throttling is active.
+// tick+try_receive. Uses .Timeout kind — asserts < 50 tick iterations, proving
+// wake_pending CAS throttling is active.
 @(test)
 test_nbio_throttle_efficiency :: proc(t: ^testing.T) {
 	if !testing.expect(t, nbio.acquire_thread_event_loop() == nil, "failed to acquire event loop") {
@@ -52,7 +53,7 @@ test_nbio_throttle_efficiency :: proc(t: ^testing.T) {
 	defer nbio.release_thread_event_loop()
 	loop := nbio.current_thread_event_loop()
 
-	m, err := mbox.init_nbio_mbox(Msg, loop)
+	m, err := nbio_mbox.init_nbio_mbox(Msg, loop, .Timeout)
 	if !testing.expect(t, err == .None, "init_nbio_mbox failed") {
 		return
 	}
@@ -114,7 +115,7 @@ test_nbio_burst_multiproducer :: proc(t: ^testing.T) {
 	defer nbio.release_thread_event_loop()
 	loop := nbio.current_thread_event_loop()
 
-	m, err := mbox.init_nbio_mbox(Msg, loop)
+	m, err := nbio_mbox.init_nbio_mbox(Msg, loop)
 	if !testing.expect(t, err == .None, "init_nbio_mbox failed") {
 		return
 	}
@@ -188,7 +189,7 @@ test_nbio_pool_constancy :: proc(t: ^testing.T) {
 	defer nbio.release_thread_event_loop()
 	loop := nbio.current_thread_event_loop()
 
-	m, err := mbox.init_nbio_mbox(Msg, loop)
+	m, err := nbio_mbox.init_nbio_mbox(Msg, loop)
 	if !testing.expect(t, err == .None, "init_nbio_mbox failed") {
 		return
 	}
@@ -257,7 +258,7 @@ test_nbio_late_arrival :: proc(t: ^testing.T) {
 	defer nbio.release_thread_event_loop()
 	loop := nbio.current_thread_event_loop()
 
-	m, err := mbox.init_nbio_mbox(Msg, loop)
+	m, err := nbio_mbox.init_nbio_mbox(Msg, loop)
 	if !testing.expect(t, err == .None, "init_nbio_mbox failed") {
 		return
 	}

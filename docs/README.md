@@ -64,7 +64,7 @@ My_Msg :: struct {
 ## Two mailbox types
 
 - **Mailbox($T)**: For worker threads. Blocks the thread until a message arrives.
-- **Loop_Mailbox($T)**: For nbio loops. Wakes the loop. Never blocks the thread.
+- **try_mbox.Mbox($T)**: For nbio loops. Wakes the loop. Never blocks the thread. Created by `init_nbio_mbox`.
 
 Both are thread-safe. Both have zero allocations for sending or receiving.
 

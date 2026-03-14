@@ -5,7 +5,7 @@ import "core:thread"
 import "core:time"
 import "core:nbio"
 import list "core:container/intrusive/list"
-import mbox ".."
+import nbio_mbox "../nbio_mbox"
 import try_mbox "../try_mbox"
 
 // _Loop_Wake_Ctx holds state for the sender thread in test_loop_wake_on_send.
@@ -35,7 +35,7 @@ test_loop_basic :: proc(t: ^testing.T) {
 	defer nbio.release_thread_event_loop()
 	loop := nbio.current_thread_event_loop()
 
-	m, err := mbox.init_nbio_mbox(Msg, loop)
+	m, err := nbio_mbox.init_nbio_mbox(Msg, loop)
 	if !testing.expect(t, err == .None, "init_nbio_mbox failed") {
 		return
 	}
@@ -76,7 +76,7 @@ test_loop_close_and_drain :: proc(t: ^testing.T) {
 	defer nbio.release_thread_event_loop()
 	loop := nbio.current_thread_event_loop()
 
-	m, err := mbox.init_nbio_mbox(Msg, loop)
+	m, err := nbio_mbox.init_nbio_mbox(Msg, loop)
 	if !testing.expect(t, err == .None, "init_nbio_mbox failed") {
 		return
 	}
@@ -114,7 +114,7 @@ test_loop_wake_on_send :: proc(t: ^testing.T) {
 	defer nbio.release_thread_event_loop()
 	loop := nbio.current_thread_event_loop()
 
-	m, err := mbox.init_nbio_mbox(Msg, loop)
+	m, err := nbio_mbox.init_nbio_mbox(Msg, loop)
 	if !testing.expect(t, err == .None, "init_nbio_mbox failed") {
 		return
 	}
@@ -158,7 +158,7 @@ test_loop_wake_on_send :: proc(t: ^testing.T) {
 // test_loop_invalid_loop: init_nbio_mbox with nil loop returns (nil, .Invalid_Loop).
 @(test)
 test_loop_invalid_loop :: proc(t: ^testing.T) {
-	m, err := mbox.init_nbio_mbox(Msg, nil)
+	m, err := nbio_mbox.init_nbio_mbox(Msg, nil)
 	testing.expect(t, m == nil, "init_nbio_mbox(nil) should return nil mbox")
 	testing.expect(t, err == .Invalid_Loop, "init_nbio_mbox(nil) should return .Invalid_Loop")
 }
@@ -173,7 +173,7 @@ test_loop_high_freq_send :: proc(t: ^testing.T) {
 	defer nbio.release_thread_event_loop()
 	loop := nbio.current_thread_event_loop()
 
-	m, err := mbox.init_nbio_mbox(Msg, loop)
+	m, err := nbio_mbox.init_nbio_mbox(Msg, loop)
 	if !testing.expect(t, err == .None, "init_nbio_mbox failed") {
 		return
 	}
@@ -231,7 +231,7 @@ test_loop_double_close :: proc(t: ^testing.T) {
 	defer nbio.release_thread_event_loop()
 	loop := nbio.current_thread_event_loop()
 
-	m, err := mbox.init_nbio_mbox(Msg, loop)
+	m, err := nbio_mbox.init_nbio_mbox(Msg, loop)
 	if !testing.expect(t, err == .None, "init_nbio_mbox failed") {
 		return
 	}

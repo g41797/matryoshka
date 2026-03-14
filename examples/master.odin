@@ -1,6 +1,6 @@
 package examples
 
-import mbox ".."
+import mbox "../mbox"
 import pool_pkg "../pool"
 import list "core:container/intrusive/list"
 

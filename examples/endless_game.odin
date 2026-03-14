@@ -1,6 +1,6 @@
 package examples
 
-import mbox ".."
+import mbox "../mbox"
 import list "core:container/intrusive/list"
 import "core:sync"
 import "core:thread"

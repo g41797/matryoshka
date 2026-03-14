@@ -1,6 +1,6 @@
 package examples
 
-import mbox ".."
+import mbox "../mbox"
 import "core:thread"
 import "core:time"
 

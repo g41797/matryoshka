@@ -20,6 +20,105 @@ for %%o in (%OPTS%) do (
         exit /b !errorlevel!
     )
 
+    echo   build mbox lib...
+    if "%%o"=="none" (
+        odin build ./mbox/ -build-mode:lib -vet -strict-style -o:none -debug
+    ) else (
+        odin build ./mbox/ -build-mode:lib -vet -strict-style -o:%%o
+    )
+    if !errorlevel! neq 0 (
+        echo [ERROR] mbox build failed for -o:%%o
+        exit /b !errorlevel!
+    )
+
+    echo   build mpsc lib...
+    if "%%o"=="none" (
+        odin build ./mpsc/ -build-mode:lib -vet -strict-style -o:none -debug
+    ) else (
+        odin build ./mpsc/ -build-mode:lib -vet -strict-style -o:%%o
+    )
+    if !errorlevel! neq 0 (
+        echo [ERROR] mpsc build failed for -o:%%o
+        exit /b !errorlevel!
+    )
+
+    echo   test mpsc/...
+    if "%%o"=="none" (
+        odin test ./mpsc/ -vet -strict-style -disallow-do -o:none -debug
+    ) else (
+        odin test ./mpsc/ -vet -strict-style -disallow-do -o:%%o
+    )
+    if !errorlevel! neq 0 (
+        echo [ERROR] mpsc tests failed for -o:%%o
+        exit /b !errorlevel!
+    )
+
+    echo   build wakeup lib...
+    if "%%o"=="none" (
+        odin build ./wakeup/ -build-mode:lib -vet -strict-style -o:none -debug
+    ) else (
+        odin build ./wakeup/ -build-mode:lib -vet -strict-style -o:%%o
+    )
+    if !errorlevel! neq 0 (
+        echo [ERROR] wakeup build failed for -o:%%o
+        exit /b !errorlevel!
+    )
+
+    echo   test wakeup/...
+    if "%%o"=="none" (
+        odin test ./wakeup/ -vet -strict-style -disallow-do -o:none -debug
+    ) else (
+        odin test ./wakeup/ -vet -strict-style -disallow-do -o:%%o
+    )
+    if !errorlevel! neq 0 (
+        echo [ERROR] wakeup tests failed for -o:%%o
+        exit /b !errorlevel!
+    )
+
+    echo   build try_mbox lib...
+    if "%%o"=="none" (
+        odin build ./try_mbox/ -build-mode:lib -vet -strict-style -o:none -debug
+    ) else (
+        odin build ./try_mbox/ -build-mode:lib -vet -strict-style -o:%%o
+    )
+    if !errorlevel! neq 0 (
+        echo [ERROR] try_mbox build failed for -o:%%o
+        exit /b !errorlevel!
+    )
+
+    echo   test try_mbox/...
+    if "%%o"=="none" (
+        odin test ./try_mbox/ -vet -strict-style -disallow-do -o:none -debug
+    ) else (
+        odin test ./try_mbox/ -vet -strict-style -disallow-do -o:%%o
+    )
+    if !errorlevel! neq 0 (
+        echo [ERROR] try_mbox tests failed for -o:%%o
+        exit /b !errorlevel!
+    )
+
+    echo   build nbio_mbox lib...
+    if "%%o"=="none" (
+        odin build ./nbio_mbox/ -build-mode:lib -vet -strict-style -o:none -debug
+    ) else (
+        odin build ./nbio_mbox/ -build-mode:lib -vet -strict-style -o:%%o
+    )
+    if !errorlevel! neq 0 (
+        echo [ERROR] nbio_mbox build failed for -o:%%o
+        exit /b !errorlevel!
+    )
+
+    echo   test nbio_mbox/...
+    if "%%o"=="none" (
+        odin test ./nbio_mbox/ -vet -strict-style -disallow-do -o:none -debug
+    ) else (
+        odin test ./nbio_mbox/ -vet -strict-style -disallow-do -o:%%o
+    )
+    if !errorlevel! neq 0 (
+        echo [ERROR] nbio_mbox tests failed for -o:%%o
+        exit /b !errorlevel!
+    )
+
     echo   build pool lib...
     if "%%o"=="none" (
         odin build ./pool/ -build-mode:lib -vet -strict-style -o:none -debug
@@ -82,6 +181,16 @@ echo.
 echo --- doc smoke test ---
 odin doc ./
 if !errorlevel! neq 0 ( echo [ERROR] doc failed for root & exit /b !errorlevel! )
+odin doc ./mbox/
+if !errorlevel! neq 0 ( echo [ERROR] doc failed for mbox & exit /b !errorlevel! )
+odin doc ./mpsc/
+if !errorlevel! neq 0 ( echo [ERROR] doc failed for mpsc & exit /b !errorlevel! )
+odin doc ./wakeup/
+if !errorlevel! neq 0 ( echo [ERROR] doc failed for wakeup & exit /b !errorlevel! )
+odin doc ./try_mbox/
+if !errorlevel! neq 0 ( echo [ERROR] doc failed for try_mbox & exit /b !errorlevel! )
+odin doc ./nbio_mbox/
+if !errorlevel! neq 0 ( echo [ERROR] doc failed for nbio_mbox & exit /b !errorlevel! )
 odin doc ./pool/
 if !errorlevel! neq 0 ( echo [ERROR] doc failed for pool & exit /b !errorlevel! )
 odin doc ./pool_tests/
