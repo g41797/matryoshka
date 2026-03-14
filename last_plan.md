@@ -439,7 +439,64 @@ where intrinsics.type_has_field(T, "node"),
 
 ---
 
-### Stage 7 — Re-branding  ← NEXT
+### Explanation and fixes by Gemini Cli
+
+Explanation:
+
+```txt
+  I have resolved the CI failures across all platforms by addressing a Use-After-Free vulnerability in nbio_mbox.odin. The issue was caused by
+  throttled wake-up callbacks firing after the mailbox state had been freed. I implemented atomic reference counting for the _NBio_State struct to
+  ensure it remains valid until all pending callbacks have completed.
+  Additionally, I improved the synchronization in test_nbio_late_arrival using a
+  semaphore. <====== WHY ???
+  Updated all relevant tests and examples to include a final nbio.tick(0) after closing the mailbox, ensuring clean memory management.
+```
+
+Changes
+
+```txt
+- nbio_mbox.odin: Added ref_count to _NBio_State. Callback and close operations now use atomic increments/decrements to safely free memory.
+- tests/nbio_mbox_edge_test.odin: Refactored test_nbio_late_arrival to use sync.Sema for deterministic execution. Added nbio.tick(0) after close
+     in all tests to prevent memory leaks.
+- tests/loop_test.odin: Added nbio.tick(0) after close in all tests.
+- examples/negotiation.odin: Added nbio.tick(0) after close.
+```
+
+
+### Stage 7 — Strategic Analysis + Edge Cases  ✓ DONE (Session 78)
+
+**Purpose**: Harden `try_mbox` and `nbio_mbox` based on deeper technical analysis.
+
+**nbio_mbox.odin updates (§9)**:
+- Problem: High-frequency `send` can overflow nbio's 128-slot cross-thread queue.
+- Fix: Implement "wake-up throttling" with an atomic `wake_pending` flag in `_NBio_State`.
+- CAS `false`→`true` in `_nbio_wake`; fire `nbio.timeout_poly` only if CAS succeeds.
+- Flag reset by `_noop_clear` callback running inside the event-loop thread.
+
+**try_mbox/mbox.odin updates (§10, §11)**:
+- `try_receive`: Strengthened comments regarding stall handling (retry on next tick).
+- `close`: Strengthened comments regarding precondition (joined senders eliminate stall).
+- New API: `try_receive_all(m)` — drains the entire queue into a `list.List`. Optimized for event-loop iterations.
+
+**Tests added**:
+- `try_mbox/edge_test.odin`: `test_concurrent_producers` (10k total), `test_close_during_send_race`.
+- `try_mbox/mbox_test.odin`: `test_try_receive_all_basic`.
+- `tests/loop_test.odin`: `test_loop_invalid_loop`, `test_loop_high_freq_send` (10k).
+- `tests/nbio_mbox_edge_test.odin`: `test_nbio_throttle_efficiency` (verifies < 50 ticks for 1k sends), `test_nbio_burst_multiproducer` (100k total), `test_nbio_pool_constancy`, `test_nbio_late_arrival` (flag-reset window safety).
+
+**Files**:
+- `nbio_mbox.odin` — UPDATE
+- `try_mbox/mbox.odin` — UPDATE
+- `try_mbox/mbox_test.odin` — UPDATE
+- `try_mbox/edge_test.odin` — NEW
+- `tests/loop_test.odin` — UPDATE
+- `tests/nbio_mbox_edge_test.odin` — NEW
+- `design/loop-mbox-enhancement.md` — Add Stage 7 section
+- `design/STATUS.md` — Add session entry
+
+---
+
+### Stage 8 — Re-branding  ← NEXT
 
 **Purpose**:
 Repo name `odin-mbox` and description no longer match the library scope.
@@ -449,7 +506,7 @@ reflect a multi-package concurrency library, not just a mailbox.
 
 ---
 
-### Stage 8 — Documentation
+### Stage 9 — Documentation
 
 **Purpose**:
 Each package is a usable standalone library.
@@ -480,7 +537,16 @@ Details TBD when we reach this stage.
 
 ## Strategic Analysis & Technical Refinements
 
-### 3. Re-branding (Stage 7)
+### 1. MPSC Stats (Stage 3)
+- **Context**: Odin's `core:sync/chan` provides `len()` and `cap()` functions.
+- **Decision**: We will keep the `stats` (or `len`) function to match the Odin environment.
+- **Implementation**: Add an atomic length counter to the `mpsc.Queue`. This is necessary because pointer comparison is unreliable during concurrent push/pop operations.
+
+### 2. WakeUper Context (Stage 4)
+- **Status**: Closed.
+- **Decision**: Do NOT use `#contextless`. Users may need `context.logger` or custom allocators inside wake callbacks. Follows existing codebase pattern.
+
+### 3. Re-branding (Stage 8)
 - **Preferred Name**: `odin-itc` (Inter-Thread Communication).
 - **Advice**: This name is very descriptive and fits well with other Odin libraries. It honors the Zig roots while acknowledging the move to a general communication toolkit.
 
@@ -488,7 +554,7 @@ Details TBD when we reach this stage.
 - **Technical Note**: Vyukov queues have a known "stall" state where a consumer sees a `nil` next pointer while a producer is mid-update.
 - **Decision**: `Loop_Mailbox` treats stall as "temporarily empty." Next tick drains it. Document this in `pop`'s comment in `mpsc/queue.odin`. Note: `len > 0` does NOT guarantee `pop` succeeds during stall — also document in `pop`'s comment.
 
-### 5. Documentation Strategy (Stage 8)
+### 5. Documentation Strategy (Stage 9)
 - **Willings**: Per-package READMEs must include a "Copy-Pasteable" example for that specific package. This makes the library more attractive to developers who only need one component (like the lock-free queue).
 
 ### 6. Pool Re-initialization Check
@@ -499,74 +565,21 @@ Details TBD when we reach this stage.
 - **Context**: In `pool.put`, the `reset` hook is called outside the mutex.
 - **Consideration**: We must ensure that if one thread calls `destroy` (marking state `.Closed`) while another is in the middle of a `put.reset`, no invalid operations occur. A dedicated stress test is needed to verify this specific window.
 
+### 8. Pool Statistics API
+- **Recommendation**: Add a public `pool.length(p)` or `pool.stats(p)` procedure.
+- **Reason**: This matches the API pattern of `mbox` and `mpsc`, providing a read-only, consistent way to check the free-list size without accessing internal struct fields.
 
-### 9. Nbio Waker Overwhelming Risk  ✓ DONE (Session 78)
+### 9. Nbio Waker Overwhelming Risk ✓ DONE (Session 78)
+- **Analysis**: Nbio's cross-thread queue has a fixed capacity of 128. If `send` is called at very high frequency, it enqueues a no-op task for every call. This will fill the queue and cause producers to busy-wait (spin) in `nbio.exec`. It also puts pressure on the operation pool.
+- **Decision**: Implement an "at most one pending wake-up" pattern using an atomic flag in `nbio_mbox`. This ensures that multiple sends only result in a single wake-up task being enqueued, which is sufficient to wake the loop.
 
-**Analysis** (confirmed by nbio source review):
-- Standard nbio operations (Accept, Recv, Send) run via `_exec(op)` from the loop thread — bypass the cross-thread queue.
-- Worker threads using `nbio.exec` (and `nbio.timeout` called from non-loop threads) go through the cross-thread MPSC queue — capacity 128.
-- If the queue fills, `nbio.exec` busy-waits (`wake_up` + `_yield` loop) — harmful for high-frequency sends.
-- `try_receive` drains the whole mailbox in one call, so multiple wake-up signals per drain are redundant.
+### 10. MPSC Stall Recovery ✓ DONE (Session 78)
+- **Question**: Should `try_mbox.try_receive` internally retry once on a stall (nil return when length > 0), or leave it to the caller?
+- **Decision**: Leave to caller. Retrying once inside `try_receive` could improve ergonomics for high-concurrency scenarios but might hide performance issues or violate the "non-blocking" spirit if retries are frequent.
 
-**Decision**: Implement "wake-up throttling" using an atomic flag.
-
-**Implementation** (`nbio_mbox.odin`):
-
-1. Add `wake_pending: bool` to `_NBio_State`:
-```odin
-_NBio_State :: struct {
-    loop:         ^nbio.Event_Loop,
-    keepalive:    ^nbio.Operation,
-    allocator:    mem.Allocator,
-    wake_pending: bool, // atomic — prevents queue overflow on high-frequency sends
-}
-```
-
-2. New `_noop_clear` callback (runs in event-loop thread, clears flag):
-```odin
-@(private)
-_noop_clear :: proc(_: ^nbio.Operation, state: ^_NBio_State) {
-    intrinsics.atomic_store(&state.wake_pending, false)
-}
-```
-
-3. Replace `_nbio_wake` body — CAS false→true; fire only if CAS succeeds:
-```odin
-@(private)
-_nbio_wake :: proc(ctx: rawptr) {
-    if ctx == nil { return }
-    state := (^_NBio_State)(ctx)
-    // atomic_compare_exchange_strong returns OLD value.
-    // If old == true: already pending — skip.
-    // If old == false: we set to true — fire timeout.
-    if intrinsics.atomic_compare_exchange_strong(&state.wake_pending, false, true) != false {
-        return
-    }
-    nbio.timeout_poly(0, state, _noop_clear, state.loop)
-}
-```
-
-4. Keepalive init unchanged: `nbio.timeout(time.Hour * 24, _noop, loop)`
-
-**Note**: `timeout_poly` passes `state` to `_noop_clear`. Size constraint: `size_of(^_NBio_State)` == 8 bytes — within `MAX_USER_ARGUMENTS`.
-
-### 10. MPSC Stall Recovery  ✓ DONE (Session 78)
-
-**Decision: no internal retry.**
-`try_receive` stays non-blocking — one `mpsc.pop` call, return immediately.
-Stall is a caller concern. Retry on the next event loop tick (the keepalive ensures the loop keeps ticking).
-Spinning inside `try_receive` would violate the non-blocking contract.
-
-**Done**: `try_receive` comment strengthened in `try_mbox/mbox.odin`.
-
-### 11. Close Semantics & Stall Window  ✓ DONE (Session 78)
-
-**Decision: no retry in close.**
-Precondition: "Call only after all senders have stopped (threads joined)."
-After a sender thread is joined, both the atomic exchange and the next-pointer write have completed — no open stall window.
-The existing drain loop (`for { pop; if nil { break } }`) is correct under this precondition.
-
-**Done**: `close` comment strengthened in `try_mbox/mbox.odin`.
+### 11. Close Semantics & Stall Window ✓ DONE (Session 78)
+- **Question**: If a stall happens during the final drain in `close`, that message might be lost. Should we add a retry loop inside `close`?
+- **Decision**: No retry in `close`. Precondition is joined senders. A robust implementation handles stalls naturally via the drain loop if senders are stopped.
 
 ---
 
@@ -587,28 +600,22 @@ To keep `queue_test.odin`, `wakeup_test.odin`, and `pool_test.odin` clean as "ru
 - **Custom WakeUper**: Implement a simple dummy `WakeUper` in the test to verify the interface works without `sema_wakeup`.
 - **Missed Test**: `test_ctx_persistence` — check that the `rawptr` passed to `wake` and `close` is bit-for-bit identical to the one provided during creation.
 
-### 3. Pool Edge Cases (`pool_tests/edge_test.odin`)
+### 3. Pool Edge Cases (`pool_tests/edge_test.odin`) ✓ DONE (Session 76)
 - **High-Volume Stress**: 10 threads performing 10,000 `get(.Always)` and `put` operations. Verify zero leaks and zero double-frees using the memory tracker.
 - **Max Limit Racing**: Multiple threads calling `put` on a pool that is exactly at `max_msgs`. Verify `curr_msgs` never exceeds the cap and all excess messages are freed correctly.
 - **Shutdown Race Stress**: 5 threads constantly calling `put` while another thread calls `destroy`. Ensures transition from `.Active` to `.Closed` is safe even if `reset` is running.
 - **Idempotent Destroy**: Multiple threads calling `destroy` at the same time. Verify no crashes or double-frees.
 - **Allocator Integrity**: Use a custom tracking allocator to ensure the pool never falls back to `context.allocator` for internal `new`/`free` calls.
 
-### 4. Try_mbox Edge Cases (`try_mbox/edge_test.odin`)  ✓ DONE (Session 78)
-- `test_concurrent_producers`: 10 threads × 1,000 sends, single consumer drains all 10,000.
-- `test_close_during_send_race`: 5 threads send while main closes; no panic, counts valid.
-- Also added: `try_receive_all` proc + `test_try_receive_all_basic` in `mbox_test.odin`.
+### 4. Try_mbox Edge Cases (`try_mbox/edge_test.odin`) ✓ DONE (Session 78)
+- **MPSC Stall Stress**: Create contention to trigger stall window. Verify `try_receive` eventually succeeds.
+- **Close during Send Race**: 5 threads send while main closes; verify counts and no panics.
 
-### 5. Nbio_mbox Edge Cases  ✓ DONE (Session 78)
-`tests/loop_test.odin` (2 new):
-- `test_loop_invalid_loop` — nil loop → `(nil, .Invalid_Loop)`
-- `test_loop_high_freq_send` — 10,000 sends; all received via tick+try_receive.
-
-`tests/nbio_mbox_edge_test.odin` (NEW, 4 tests):
-- `test_nbio_throttle_efficiency` — 1,000 sends; tick count < 50 proves wake_pending works.
-- `test_nbio_burst_multiproducer` — 20 threads × 5,000 sends = 100,000 total; all received.
-- `test_nbio_pool_constancy` — 10 rounds × 1,000 sends; no memory growth between rounds.
-- `test_nbio_late_arrival` — send A, receive A, signal B, receive B; no message lost at flag-reset.
+### 5. Nbio_mbox Edge Cases (`tests/loop_test.odin` updates) ✓ DONE (Session 78)
+- **Wake-up Throttling Stress**: 20 threads × 5,000 sends. Verify 100,000 total received and zero nbio queue overflows.
+- **Race Condition: Late Arrival**: Send a message during the flag-reset window; verify wake-up for next tick.
+- **Memory/Pool Constancy**: Verify operation pool usage does not grow during sustained high-frequency signaling.
+- **Throttling Efficiency**: Send 1,000 messages; verify < 50 tick iterations.
 
 ---
 
@@ -617,32 +624,28 @@ To keep `queue_test.odin`, `wakeup_test.odin`, and `pool_test.odin` clean as "ru
 | File | Stage | Action |
 |------|-------|--------|
 | `loop_mbox.odin` | 1,3,4 | Modify (still in root until Stage 6) |
-| `tests/loop_test.odin` | 1,4,6 | Update init calls + imports |
+| `tests/loop_test.odin` | 1,4,6,7 | Update init calls + imports |
 | `examples/negotiation.odin` | 1,4,6 | Update init call + imports |
 | `mpsc/queue.odin` | 3 | NEW |
 | `mpsc/doc.odin` | 3 | NEW |
-| `mpsc/queue_test.odin` | 3 | NEW (unit tests) |
+| `mpsc/queue_test.odin" | 3 | NEW (unit tests) |
 | `wakeup/wakeup.odin` | 4 | NEW |
-| `wakeup/doc.odin` | 4 | NEW |
+| `wakeup/doc.odin" | 4 | NEW |
 | `wakeup/wakeup_test.odin` | 4 | NEW (unit tests) |
-| `pool/pool.odin` | 5 | Modify (add waker, empty_was_returned) |
-| `pool_tests/pool_test.odin` | 5 | Add WakeUper tests |
+| `pool/pool.odin` | 5,5b | Modify (add waker, length, init guard) |
+| `pool_tests/pool_test.odin` | 5,5b | Add WakeUper + logic tests |
+| `pool_tests/edge_test.odin` | 5b | NEW (moved + new stress tests) |
 | `poll_mbox/` (entire folder) | 6a | DELETE |
-| `try_mbox/mbox.odin` | 6a | NEW |
+| `try_mbox/mbox.odin` | 6a,7 | NEW |
 | `try_mbox/doc.odin` | 6a | NEW |
-| `try_mbox/mbox_test.odin` | 6a | NEW (unit tests) |
+| `try_mbox/mbox_test.odin` | 6a,7 | NEW (unit tests) |
+| `try_mbox/edge_test.odin` | 7 | NEW (stress tests) |
 | `loop_mbox.odin` | 6b | DELETE |
-| `nbio_mbox.odin` | 6b | NEW (package mbox, factory only) |
-| `tests/loop_test.odin` | 6b,7 | UPDATE |
-| `examples/negotiation.odin` | 6b | UPDATE |
-| `nbio_mbox.odin` | 7 (§9) | UPDATE — wake_pending + _noop_clear |
-| `try_mbox/mbox.odin` | 7 (§10,§11) | UPDATE — comments + try_receive_all |
-| `try_mbox/mbox_test.odin` | 7 | UPDATE — test_try_receive_all_basic |
-| `try_mbox/edge_test.odin` | 7 | NEW — 2 edge tests |
-| `tests/nbio_mbox_edge_test.odin` | 7 | NEW — 4 edge tests |
+| `nbio_mbox.odin` | 6b,7 | NEW (package mbox, factory only) |
+| `tests/nbio_mbox_edge_test.odin` | 7 | NEW (stress tests) |
 | `design/loop-mbox-enhancement.md` | all | NEW (add to .gitignore) |
-| `design/STATUS.md` | all | Update |
-| `last_plan.md` | all | Update |
+| `design/STATUS.md" | all | Update |
+| `last_plan.md" | all | Update |
 
 ---
 

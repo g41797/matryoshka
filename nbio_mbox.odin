@@ -22,6 +22,7 @@ _NBio_State :: struct {
 	loop:         ^nbio.Event_Loop,
 	keepalive:    ^nbio.Operation,
 	allocator:    mem.Allocator,
+	ref_count:    int,  // atomic
 	wake_pending: bool, // atomic — guards the cross-thread timeout queue (capacity 128)
 }
 
@@ -29,10 +30,14 @@ _NBio_State :: struct {
 @(private)
 _noop :: proc(_: ^nbio.Operation) {}
 
-// _noop_clear clears the wake_pending flag. Runs in the event-loop thread after timeout fires.
+// _noop_clear clears the wake_pending flag and releases a reference.
+// Runs in the event-loop thread after timeout fires.
 @(private)
 _noop_clear :: proc(_: ^nbio.Operation, state: ^_NBio_State) {
 	intrinsics.atomic_store(&state.wake_pending, false)
+	if intrinsics.atomic_add(&state.ref_count, -1) == 1 {
+		free(state, state.allocator)
+	}
 }
 
 // _nbio_wake fires a zero-duration timeout to wake the nbio event loop.
@@ -48,10 +53,15 @@ _nbio_wake :: proc(ctx: rawptr) {
 	if intrinsics.atomic_compare_exchange_strong(&state.wake_pending, false, true) != false {
 		return
 	}
+	// Take a reference for the pending timeout task.
+	intrinsics.atomic_add(&state.ref_count, 1)
 	nbio.timeout_poly(0, state, _noop_clear, state.loop)
 }
 
-// _nbio_close removes the keepalive timer and frees the state.
+// _nbio_close removes the keepalive timer and releases the primary reference.
+// Must be called from the event-loop thread — nbio.remove panics cross-thread.
+// If a _noop_clear callback is pending (wake_pending was true at close time),
+// nbio.tick(0) drains it so _noop_clear can decrement ref_count to 0 and free state.
 @(private)
 _nbio_close :: proc(ctx: rawptr) {
 	if ctx == nil {
@@ -62,7 +72,11 @@ _nbio_close :: proc(ctx: rawptr) {
 		nbio.remove(state.keepalive)
 		state.keepalive = nil
 	}
-	free(state, state.allocator)
+	if intrinsics.atomic_add(&state.ref_count, -1) == 1 {
+		free(state, state.allocator) // no pending callback — free now
+	} else {
+		nbio.tick(0) // drain pending _noop_clear → it will free state
+	}
 }
 
 // Loop_Mailbox_Error is the error returned by init_nbio_mbox.
@@ -75,7 +89,15 @@ Loop_Mailbox_Error :: enum {
 // init_nbio_mbox allocates a try_mbox.Mbox wired to the nbio event loop.
 // Returns (nil, .Invalid_Loop) if loop is nil.
 // Returns (nil, .Keepalive_Failed) if keepalive timer or Mbox allocation fails.
-// The returned Mbox uses try_mbox.send, try_mbox.try_receive, try_mbox.close, try_mbox.destroy.
+//
+// Thread model:
+//   init_nbio_mbox : any thread   — nbio.timeout uses cross-thread queue when loop ≠ current thread
+//   send           : any thread   — _nbio_wake uses timeout_poly (cross-thread safe)
+//   try_receive    : event-loop thread only — MPSC single-consumer rule
+//   close          : event-loop thread only — nbio.remove panics cross-thread
+//   destroy        : event-loop thread (after close)
+//
+// "Event-loop thread" = the one thread calling nbio.tick for the given loop.
 init_nbio_mbox :: proc(
 	$T: typeid,
 	loop: ^nbio.Event_Loop,
@@ -91,6 +113,7 @@ init_nbio_mbox :: proc(
 	}
 	state.loop = loop
 	state.allocator = allocator
+	state.ref_count = 1 // Held by the Mbox/WakeUper.
 	state.keepalive = nbio.timeout(time.Hour * 24, _noop, loop)
 	if state.keepalive == nil {
 		free(state, allocator)

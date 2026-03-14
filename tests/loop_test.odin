@@ -77,7 +77,10 @@ test_loop_close_and_drain :: proc(t: ^testing.T) {
 	if !testing.expect(t, err == .None, "init_nbio_mbox failed") {
 		return
 	}
-	defer try_mbox.destroy(m)
+	defer {
+		try_mbox.close(m)
+		try_mbox.destroy(m)
+	}
 
 	a := Msg{data = 10}
 	b := Msg{data = 20}
@@ -226,7 +229,10 @@ test_loop_double_close :: proc(t: ^testing.T) {
 	if !testing.expect(t, err == .None, "init_nbio_mbox failed") {
 		return
 	}
-	defer try_mbox.destroy(m)
+	defer {
+		try_mbox.close(m)
+		try_mbox.destroy(m)
+	}
 
 	_, was_open1 := try_mbox.close(m)
 	_, was_open2 := try_mbox.close(m)

@@ -61,8 +61,8 @@ send :: proc(m: ^Mbox($T), msg: ^T) -> bool where intrinsics.type_has_field(T, "
 
 // try_receive pops one message without blocking. Single-consumer only.
 // Returns (nil, false) if the queue is empty, in a stall state, or closed.
-// On stall (length > 0 but nil returned): caller retries on the next event loop tick.
-// Do not call in a tight loop — busy-polling defeats the non-blocking contract.
+// On stall (length > 0 but nil returned): caller retries on the next tick. Do not
+// call in a tight loop — busy-polling defeats the non-blocking contract.
 try_receive :: proc(m: ^Mbox($T)) -> (^T, bool) where intrinsics.type_has_field(T, "node"),
 	intrinsics.type_field_type(T, "node") == list.Node {
 	msg := mpsc.pop(&m.queue)
@@ -86,6 +86,7 @@ try_receive_all :: proc(m: ^Mbox($T)) -> list.List where intrinsics.type_has_fie
 // close marks the mailbox closed, calls waker.close, and drains remaining messages.
 // Returns (remaining, true) on first call; ({}, false) if already closed.
 // Caller must drain the returned list — free heap messages or return to pool.
+// Must be called from the consumer thread — drains with mpsc.pop (single-consumer).
 // Precondition: all senders have stopped (threads joined). After that, no stall
 // window can be active — each sender's push (atomic exchange + next-pointer write)
 // is fully visible once the thread is joined.

@@ -11,5 +11,12 @@
 //
 // Stall: try_receive may return (nil, false) while length > 0.
 // This is a property of the Vyukov MPSC queue. Retry on the next call.
-// Call close only after all senders have stopped.
+//
+// Thread model:
+//   init        : any thread
+//   send        : any thread (multiple producers, MPSC safe)
+//   try_receive : consumer thread only — MPSC single-consumer rule
+//   close       : consumer thread only — drains with mpsc.pop (single-consumer);
+//                 must be called after all senders have stopped (threads joined)
+//   destroy     : any thread after close (no concurrent access remains)
 package try_mbox

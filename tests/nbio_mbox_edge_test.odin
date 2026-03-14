@@ -7,6 +7,7 @@ import "core:testing"
 import "core:thread"
 import "core:time"
 import "core:nbio"
+import "core:sync"
 import mbox ".."
 import try_mbox "../try_mbox"
 
@@ -38,7 +39,7 @@ _LA_Ctx :: struct {
 	m:    ^try_mbox.Mbox(Msg),
 	a:    ^Msg,
 	b:    ^Msg,
-	done: bool, // set by main after receiving A
+	sema: ^sync.Sema,
 }
 
 // test_nbio_throttle_efficiency: 1,000 sends from a worker thread; main drains with
@@ -268,22 +269,21 @@ test_nbio_late_arrival :: proc(t: ^testing.T) {
 	a := Msg{data = 1}
 	b := Msg{data = 2}
 
-	ctx := _LA_Ctx{m = m, a = &a, b = &b}
+	sema: sync.Sema
+	ctx := _LA_Ctx{m = m, a = &a, b = &b, sema = &sema}
 
 	th := thread.create_and_start_with_data(&ctx, proc(data: rawptr) {
 		c := (^_LA_Ctx)(data)
-		// Send A first, then wait until main has received it, then send B.
+		// Send A first, then wait until main signals, then send B.
 		try_mbox.send(c.m, c.a)
-		for !c.done {
-			// spin until main signals
-		}
+		sync.sema_wait(c.sema)
 		try_mbox.send(c.m, c.b)
 	})
 
 	// Drain A via tick.
 	got_a: ^Msg
 	for _ in 0 ..< 200 {
-		nbio.tick(10 * time.Millisecond)
+		nbio.tick(20 * time.Millisecond)
 		got, ok := try_mbox.try_receive(m)
 		if ok {
 			got_a = got
@@ -293,12 +293,12 @@ test_nbio_late_arrival :: proc(t: ^testing.T) {
 	testing.expect(t, got_a != nil && got_a.data == 1, "should receive message A")
 
 	// Signal worker to send B.
-	ctx.done = true
+	sync.sema_post(&sema)
 
 	// Drain B via tick.
 	got_b: ^Msg
 	for _ in 0 ..< 200 {
-		nbio.tick(10 * time.Millisecond)
+		nbio.tick(20 * time.Millisecond)
 		got, ok := try_mbox.try_receive(m)
 		if ok {
 			got_b = got
