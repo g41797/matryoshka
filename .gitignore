@@ -42,3 +42,6 @@ tools/doc_config.json
 tools/odin_doc_to_html.py
 /design/nbui-command-initial.md
 How to avoid the callback hell when using the new core_nio_ - Help - Odin - Forum.pdf
+
+
+*.odin-doc

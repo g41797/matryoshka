@@ -8,6 +8,7 @@ import "core:thread"
 
 N_PLAYERS :: 6
 M_TOKENS  :: 2 // fewer tokens than players — forces waiting
+
 ROUNDS    :: 5
 
 // pool_wait_example shows N players sharing M tokens (M < N).
@@ -33,7 +34,8 @@ pool_wait_example :: proc() -> bool {
 					break
 				}
 				if err == .None {
-					pool_pkg.put(p, msg)
+					msg_opt: Maybe(^Msg) = msg
+					pool_pkg.put(p, &msg_opt)
 					count += 1
 				}
 			}
@@ -52,7 +54,8 @@ pool_wait_example :: proc() -> bool {
 					if status == .Closed {
 						break
 					}
-					mbox.send(mb, msg)
+					msg_opt: Maybe(^Msg) = msg
+					mbox.send(mb, &msg_opt)
 				}
 			},
 		)
@@ -63,7 +66,8 @@ pool_wait_example :: proc() -> bool {
 	remaining, _ := mbox.close(&mb)
 	for node := list.pop_front(&remaining); node != nil; node = list.pop_front(&remaining) {
 		msg := container_of(node, Msg, "node")
-		pool_pkg.put(&p, msg)
+		msg_opt: Maybe(^Msg) = msg
+		pool_pkg.put(&p, &msg_opt)
 	}
 	pool_pkg.destroy(&p)
 	return true

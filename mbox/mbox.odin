@@ -35,16 +35,23 @@ Mailbox :: struct($T: typeid) {
 }
 
 // send adds msg to the mailbox and wakes one waiting thread.
-// Returns false if the mailbox is closed.
-send :: proc(m: ^Mailbox($T), msg: ^T) -> bool where intrinsics.type_has_field(T, "node"),
+// nil inner (msg^ == nil) is a no-op and returns false.
+// closed: returns false, msg^ unchanged (caller retains ownership).
+// success: msg^ = nil, returns true.
+send :: proc(m: ^Mailbox($T), msg: ^Maybe(^T)) -> bool where intrinsics.type_has_field(T, "node"),
 	intrinsics.type_field_type(T, "node") == list.Node {
+	if msg^ == nil {
+		return false
+	}
+	ptr := (msg^).?
 	sync.mutex_lock(&m.mutex)
 	defer sync.mutex_unlock(&m.mutex)
 	if m.closed {
 		return false
 	}
-	list.push_back(&m.list, &msg.node)
+	list.push_back(&m.list, &ptr.node)
 	m.len += 1
+	msg^ = nil
 	sync.cond_signal(&m.cond)
 	return true
 }

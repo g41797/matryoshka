@@ -125,9 +125,9 @@ They are just small tips to show you the game...
 
 ```odin
 // sender thread:
-msg := new(My_Msg)
-msg.data = 42
-mbox.send(&mb, msg)
+msg: Maybe(^My_Msg) = new(My_Msg)
+msg.?.data = 42
+mbox.send(&mb, &msg) // msg = nil after this — mailbox owns it
 
 // receiver thread:
 got, err := mbox.wait_receive(&mb, 100 * time.Millisecond)
@@ -184,8 +184,8 @@ for {
 }
 
 // sender thread: allocate on heap, send.
-msg := new(My_Msg)
-try_mbox.send(m, msg)
+msg: Maybe(^My_Msg) = new(My_Msg)
+try_mbox.send(m, &msg) // msg = nil after this — mbox owns it
 ```
 
 ---
@@ -202,16 +202,16 @@ mb: mbox.Mailbox(My_Msg)
 
 // 1. Create a message.
 // You own the memory.
-m := new(My_Msg)
-m.data = 100
+m: Maybe(^My_Msg) = new(My_Msg)
+m.?.data = 100
 
 // 2. Interrupt the game.
 // Wakes the next waiter with .Interrupted.
 mbox.interrupt(&mb)
 
 // 3. Send the message.
-// The mailbox now owns the reference (the link).
-mbox.send(&mb, m)
+// The mailbox now owns the reference. m = nil after this.
+mbox.send(&mb, &m)
 
 // 4. Shutdown.
 // close() hands back all references to you.
@@ -251,14 +251,18 @@ if ok, _ := pool_pkg.init(&p, initial_msgs = 64, max_msgs = 256, reset = nil); !
 // .Always (default): allocates new if pool empty.
 msg, _ := pool_pkg.get(&p)
 msg.data = 42
-mbox.send(&mb, msg)
+msg_opt: Maybe(^My_Msg) = msg
+mbox.send(&mb, &msg_opt) // msg_opt = nil after this
 
 // .Pool_Only + timeout: wait up to 100 ms for a recycled message.
 msg2, status := pool_pkg.get(&p, .Pool_Only, 100 * time.Millisecond)
 
 // Receiver: receive, use, return to pool.
 got, err := mbox.wait_receive(&mb)
-if err == .None { pool_pkg.put(&p, got) }
+if err == .None {
+    got_opt: Maybe(^My_Msg) = got
+    pool_pkg.put(&p, &got_opt) // got_opt = nil after this
+}
 
 // Cleanup:
 pool_pkg.destroy(&p)

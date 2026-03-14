@@ -17,7 +17,8 @@ test_stub_recycling_explicit :: proc(t: ^testing.T) {
 	init(&q)
 	for i in 0 ..< 5 {
 		msg := _Test_Msg{data = i}
-		push(&q, &msg)
+		msg_opt: Maybe(^_Test_Msg) = &msg
+		push(&q, &msg_opt)
 		got := pop(&q)
 		testing.expectf(t, got != nil && got.data == i, "round %d: pop should return the pushed message", i)
 		testing.expectf(t, length(&q) == 0, "round %d: length should be 0 after pop", i)
@@ -35,7 +36,8 @@ test_pop_all_drains_to_zero :: proc(t: ^testing.T) {
 	msgs: [N]_Test_Msg
 	for i in 0 ..< N {
 		msgs[i].data = i
-		push(&q, &msgs[i])
+		msg_opt: Maybe(^_Test_Msg) = &msgs[i]
+		push(&q, &msg_opt)
 	}
 
 	count := 0
@@ -93,7 +95,8 @@ test_concurrent_push_stress :: proc(t: ^testing.T) {
 			&ctxs[i],
 			proc(ctx: ^_Stress_Ctx) {
 				for j in 0 ..< len(ctx.msgs) {
-					push(ctx.q, &ctx.msgs[j])
+					msg_opt: Maybe(^_Test_Msg) = &ctx.msgs[j]
+					push(ctx.q, &msg_opt)
 				}
 			},
 		)
@@ -127,7 +130,8 @@ test_length_consistency :: proc(t: ^testing.T) {
 	N :: 200
 	msgs: [N]_Test_Msg
 	for i in 0 ..< N {
-		push(&q, &msgs[i])
+		msg_opt: Maybe(^_Test_Msg) = &msgs[i]
+		push(&q, &msg_opt)
 	}
 
 	testing.expect(t, length(&q) == N, "length should equal number of pushes")

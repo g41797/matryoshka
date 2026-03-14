@@ -38,9 +38,9 @@ test_nbio_mbox_timeout_kind :: proc(t: ^testing.T) {
 		try_mbox.destroy(m)
 	}
 
-	msg := new(examples.Msg)
-	msg.data = 11
-	try_mbox.send(m, msg)
+	msg: Maybe(^examples.Msg) = new(examples.Msg)
+	msg.?.data = 11
+	try_mbox.send(m, &msg)
 
 	nbio.tick(10 * time.Millisecond)
 
@@ -70,9 +70,9 @@ test_nbio_mbox_udp_kind :: proc(t: ^testing.T) {
 		try_mbox.destroy(m)
 	}
 
-	msg := new(examples.Msg)
-	msg.data = 22
-	try_mbox.send(m, msg)
+	msg: Maybe(^examples.Msg) = new(examples.Msg)
+	msg.?.data = 22
+	try_mbox.send(m, &msg)
 
 	// tick lets the UDP recv callback fire and re-arm.
 	nbio.tick(10 * time.Millisecond)
@@ -104,9 +104,9 @@ test_nbio_mbox_udp_default_kind :: proc(t: ^testing.T) {
 		try_mbox.destroy(m)
 	}
 
-	msg := new(examples.Msg)
-	msg.data = 33
-	try_mbox.send(m, msg)
+	msg: Maybe(^examples.Msg) = new(examples.Msg)
+	msg.?.data = 33
+	try_mbox.send(m, &msg)
 	nbio.tick(10 * time.Millisecond)
 
 	b3 := try_mbox.try_receive_batch(m)

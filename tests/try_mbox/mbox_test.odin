@@ -40,8 +40,9 @@ test_init_destroy :: proc(t: ^testing.T) {
 test_send_try_receive_basic :: proc(t: ^testing.T) {
 	m := try_mbox.init(examples.Msg)
 	defer {_, _ = try_mbox.close(m); try_mbox.destroy(m)}
-	msg := new(examples.Msg); msg.data = 42
-	ok := try_mbox.send(m, msg)
+	msg_ptr := new(examples.Msg); msg_ptr.data = 42
+	msg: Maybe(^examples.Msg) = msg_ptr
+	ok := try_mbox.send(m, &msg)
 	testing.expect(t, ok, "send should return true")
 	batch := try_mbox.try_receive_batch(m)
 	got := (^examples.Msg)(list.pop_front(&batch))
@@ -64,8 +65,10 @@ test_send_closed :: proc(t: ^testing.T) {
 	m := try_mbox.init(examples.Msg)
 	defer try_mbox.destroy(m)
 	_, _ = try_mbox.close(m)
-	msg := new(examples.Msg); msg.data = 1; defer free(msg)
-	ok := try_mbox.send(m, msg)
+	// send will fail (closed), so msg_ptr remains valid — defer free is safe
+	msg_ptr := new(examples.Msg); msg_ptr.data = 1; defer free(msg_ptr)
+	msg: Maybe(^examples.Msg) = msg_ptr
+	ok := try_mbox.send(m, &msg)
 	testing.expect(t, !ok, "send after close should return false")
 }
 
@@ -76,9 +79,9 @@ test_close_returns_remaining :: proc(t: ^testing.T) {
 	a := new(examples.Msg); a.data = 1
 	b := new(examples.Msg); b.data = 2
 	c := new(examples.Msg); c.data = 3
-	try_mbox.send(m, a)
-	try_mbox.send(m, b)
-	try_mbox.send(m, c)
+	a_opt: Maybe(^examples.Msg) = a; try_mbox.send(m, &a_opt)
+	b_opt: Maybe(^examples.Msg) = b; try_mbox.send(m, &b_opt)
+	c_opt: Maybe(^examples.Msg) = c; try_mbox.send(m, &c_opt)
 	remaining, was_open := try_mbox.close(m)
 	testing.expect(t, was_open, "close should return was_open == true")
 	count := 0
@@ -106,8 +109,8 @@ test_length :: proc(t: ^testing.T) {
 	testing.expect(t, try_mbox.length(m) == 0, "length should be 0 initially")
 	a := new(examples.Msg); a.data = 1
 	b := new(examples.Msg); b.data = 2
-	try_mbox.send(m, a)
-	try_mbox.send(m, b)
+	a_opt: Maybe(^examples.Msg) = a; try_mbox.send(m, &a_opt)
+	b_opt: Maybe(^examples.Msg) = b; try_mbox.send(m, &b_opt)
 	testing.expect(t, try_mbox.length(m) == 2, "length should be 2 after 2 sends")
 	batch := try_mbox.try_receive_batch(m)
 	for node := list.pop_front(&batch); node != nil; node = list.pop_front(&batch) {
@@ -122,12 +125,12 @@ test_waker_called_on_send :: proc(t: ^testing.T) {
 	waker := wakeup.WakeUper{ctx = rawptr(&wc), wake = _wc_wake}
 	m := try_mbox.init(examples.Msg, waker)
 	defer {_, _ = try_mbox.close(m); try_mbox.destroy(m)}
-	a := new(examples.Msg); a.data = 1
-	b := new(examples.Msg); b.data = 2
-	c := new(examples.Msg); c.data = 3
-	try_mbox.send(m, a)
-	try_mbox.send(m, b)
-	try_mbox.send(m, c)
+	a_ptr := new(examples.Msg); a_ptr.data = 1
+	b_ptr := new(examples.Msg); b_ptr.data = 2
+	c_ptr := new(examples.Msg); c_ptr.data = 3
+	a: Maybe(^examples.Msg) = a_ptr; try_mbox.send(m, &a)
+	b: Maybe(^examples.Msg) = b_ptr; try_mbox.send(m, &b)
+	c: Maybe(^examples.Msg) = c_ptr; try_mbox.send(m, &c)
 	// wake should be called once per send; 3 sends → count == 3
 	testing.expect(t, wc.wake_count == 3, "wake should be called once per send; 3 sends → count == 3")
 	drain := try_mbox.try_receive_batch(m)
@@ -150,8 +153,9 @@ test_waker_close_on_close :: proc(t: ^testing.T) {
 test_no_waker :: proc(t: ^testing.T) {
 	m := try_mbox.init(examples.Msg) // zero WakeUper
 	defer {_, _ = try_mbox.close(m); try_mbox.destroy(m)}
-	msg := new(examples.Msg); msg.data = 99
-	ok := try_mbox.send(m, msg)
+	msg_ptr := new(examples.Msg); msg_ptr.data = 99
+	msg: Maybe(^examples.Msg) = msg_ptr
+	ok := try_mbox.send(m, &msg)
 	testing.expect(t, ok, "send without waker should return true")
 	batch := try_mbox.try_receive_batch(m)
 	got := (^examples.Msg)(list.pop_front(&batch))
@@ -166,9 +170,9 @@ test_try_receive_batch_basic :: proc(t: ^testing.T) {
 	a := new(examples.Msg); a.data = 1
 	b := new(examples.Msg); b.data = 2
 	c := new(examples.Msg); c.data = 3
-	try_mbox.send(m, a)
-	try_mbox.send(m, b)
-	try_mbox.send(m, c)
+	a_opt: Maybe(^examples.Msg) = a; try_mbox.send(m, &a_opt)
+	b_opt: Maybe(^examples.Msg) = b; try_mbox.send(m, &b_opt)
+	c_opt: Maybe(^examples.Msg) = c; try_mbox.send(m, &c_opt)
 	result := try_mbox.try_receive_batch(m)
 	count := 0
 	for node := list.pop_front(&result); node != nil; node = list.pop_front(&result) {

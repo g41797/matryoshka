@@ -10,23 +10,23 @@ import list "core:container/intrusive/list"
 lifecycle_example :: proc() -> bool {
 	mb: mbox.Mailbox(Msg)
 
-	// 1. Create a message. 
+	// 1. Create a message.
 	// You own the memory.
-	m := new(Msg)
-	m.data = 100
+	m: Maybe(^Msg) = new(Msg)
+	m.?.data = 100
 
 	// 2. Interrupt — no message yet, so the waiter gets .Interrupted.
 	// Wakes the next waiter with .Interrupted.
 	mbox.interrupt(&mb)
 	_, err := mbox.wait_receive(&mb)
 	if err != .Interrupted {
-		free(m)
+		if mp, ok := m.?; ok {free(mp)}
 		return false
 	}
 
 	// 3. Send the message.
 	// The mailbox holds the pointer now.
-	mbox.send(&mb, m)
+	mbox.send(&mb, &m)
 
 	// 4. Shutdown.
 	// close() returns all undelivered messages.

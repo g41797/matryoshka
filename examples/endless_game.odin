@@ -59,20 +59,22 @@ endless_game_example :: proc() -> bool {
 					dice.rolls += 1
 				}
 
-				if dice.rolls >= p.total {
+				done := dice.rolls >= p.total
+				dice_opt: Maybe(^Dice) = dice
+				mbox.send(p.next_mb, &dice_opt)
+				if done {
 					sync.sema_post(p.done)
-					mbox.send(p.next_mb, dice)
 					return
 				}
-
-				mbox.send(p.next_mb, dice)
 			}
 		})
 	}
 
 	// Allocate the dice on the heap. One object, lives until free() below.
-	the_dice := new(Dice)
-	mbox.send(&mboxes[0], the_dice)
+	// Keep the_dice_ptr for post-game inspection — the_dice is nil after send.
+	the_dice_ptr := new(Dice)
+	the_dice: Maybe(^Dice) = the_dice_ptr
+	mbox.send(&mboxes[0], &the_dice)
 
 	sync.sema_wait(&done)
 
@@ -87,7 +89,7 @@ endless_game_example :: proc() -> bool {
 	}
 
 	// All threads are done. Check the result, then free the dice.
-	result := the_dice.rolls >= ROLLS
-	free(the_dice)
+	result := the_dice_ptr.rolls >= ROLLS
+	free(the_dice_ptr)
 	return result
 }

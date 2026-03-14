@@ -36,7 +36,8 @@ test_push_pop_one :: proc(t: ^testing.T) {
 	q: Queue(_Test_Msg)
 	init(&q)
 	msg := _Test_Msg{data = 42}
-	push(&q, &msg)
+	msg_opt: Maybe(^_Test_Msg) = &msg
+	push(&q, &msg_opt)
 	testing.expect(t, length(&q) == 1, "length should be 1 after push")
 	got := pop(&q)
 	testing.expect(t, got != nil && got.data == 42, "pop should return the pushed message")
@@ -52,9 +53,12 @@ test_fifo_order :: proc(t: ^testing.T) {
 	a := _Test_Msg{data = 1}
 	b := _Test_Msg{data = 2}
 	c := _Test_Msg{data = 3}
-	push(&q, &a)
-	push(&q, &b)
-	push(&q, &c)
+	a_opt: Maybe(^_Test_Msg) = &a
+	push(&q, &a_opt)
+	b_opt: Maybe(^_Test_Msg) = &b
+	push(&q, &b_opt)
+	c_opt: Maybe(^_Test_Msg) = &c
+	push(&q, &c_opt)
 	testing.expect(t, length(&q) == 3, "length should be 3 after 3 pushes")
 	g1 := pop(&q)
 	g2 := pop(&q)
@@ -73,9 +77,11 @@ test_push_pop_interleaved :: proc(t: ^testing.T) {
 	init(&q)
 	a := _Test_Msg{data = 10}
 	b := _Test_Msg{data = 20}
-	push(&q, &a)
+	a_opt: Maybe(^_Test_Msg) = &a
+	push(&q, &a_opt)
 	g1 := pop(&q)
-	push(&q, &b)
+	b_opt: Maybe(^_Test_Msg) = &b
+	push(&q, &b_opt)
 	g2 := pop(&q)
 	g3 := pop(&q)
 	testing.expect(t, g1 != nil && g1.data == 10, "first interleaved pop should return 10")
@@ -92,7 +98,8 @@ _example_basic_usage :: proc() -> bool {
 	q: Queue(_Test_Msg)
 	init(&q)
 	msg := _Test_Msg{data = 99}
-	push(&q, &msg)
+	msg_opt: Maybe(^_Test_Msg) = &msg
+	push(&q, &msg_opt)
 	got := pop(&q)
 	return got != nil && got.data == 99
 }

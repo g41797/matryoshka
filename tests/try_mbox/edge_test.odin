@@ -64,7 +64,8 @@ test_concurrent_producers :: proc(t: ^testing.T) {
 			c := (^_Slab_Ctx)(data)
 			sync.sema_wait(c.start)
 			for i in 0 ..< len(c.slab) {
-				try_mbox.send(c.m, &c.slab[i])
+				msg_opt: Maybe(^examples.Msg) = &c.slab[i]
+				try_mbox.send(c.m, &msg_opt)
 			}
 		})
 	}
@@ -116,7 +117,8 @@ test_close_during_send_race :: proc(t: ^testing.T) {
 		threads[i] = thread.create_and_start_with_data(&ctxs[i], proc(data: rawptr) {
 			c := (^_Send_Ctx)(data)
 			for i in 0 ..< len(c.slab) {
-				ok := try_mbox.send(c.m, &c.slab[i])
+				msg_opt: Maybe(^examples.Msg) = &c.slab[i]
+				ok := try_mbox.send(c.m, &msg_opt)
 				if ok {
 					intrinsics.atomic_add(&c.sent, 1)
 				}
@@ -143,7 +145,8 @@ test_close_during_send_race :: proc(t: ^testing.T) {
 
 	// After close, send must return false.
 	dummy := examples.Msg{data = -1}
-	ok := try_mbox.send(m, &dummy)
+	dummy_opt: Maybe(^examples.Msg) = &dummy
+	ok := try_mbox.send(m, &dummy_opt)
 	testing.expect(t, !ok, "send after close should return false")
 
 	// Accepted count must not exceed total attempted.

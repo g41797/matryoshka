@@ -51,9 +51,9 @@ negotiation_example :: proc(kind: nbio_mbox.Nbio_Wakeuper_Kind = .UDP) -> bool {
 
 	// Worker: allocates request, sends to loop, waits for reply, frees reply.
 	t := thread.create_and_start_with_poly_data(&w, proc(w: ^_Worker) {
-		req := new(Msg)
-		req.data = 10
-		try_mbox.send(w.loop_mb, req)
+		req: Maybe(^Msg) = new(Msg)
+		req.?.data = 10
+		try_mbox.send(w.loop_mb, &req)
 
 		// Worker allocated req; loop will send it back as reply.
 		reply, recv_err := mbox.wait_receive(w.reply_mb)
@@ -74,9 +74,10 @@ negotiation_example :: proc(kind: nbio_mbox.Nbio_Wakeuper_Kind = .UDP) -> bool {
 		if node != nil {
 			// Reuse the received message as the reply.
 			// No extra allocation needed. Ownership stays with the worker.
-			msg := (^Msg)(node)
-			msg.data = msg.data + 1
-			mbox.send(&reply_mb, msg)
+			msg_inner := (^Msg)(node)
+			msg_inner.data = msg_inner.data + 1
+			msg: Maybe(^Msg) = msg_inner
+			mbox.send(&reply_mb, &msg)
 			break
 		}
 	}

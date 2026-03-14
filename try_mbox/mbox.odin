@@ -46,13 +46,18 @@ init :: proc(
 }
 
 // send adds msg to the queue and calls waker.wake if set.
-// Returns false if the mailbox is closed. Safe to call from multiple threads.
-send :: proc(m: ^Mbox($T), msg: ^T) -> bool where intrinsics.type_has_field(T, "node"),
+// nil inner (msg^ == nil) is a no-op and returns false.
+// closed: returns false, msg^ unchanged (caller retains ownership).
+// success: msg^ = nil (push nils it), returns true.
+// Safe to call from multiple threads.
+send :: proc(m: ^Mbox($T), msg: ^Maybe(^T)) -> bool where intrinsics.type_has_field(T, "node"),
 	intrinsics.type_field_type(T, "node") == list.Node {
 	if intrinsics.atomic_load(&m.closed) {
 		return false
 	}
-	mpsc.push(&m.queue, msg)
+	if !mpsc.push(&m.queue, msg) {
+		return false
+	}
 	if m.waker.wake != nil {
 		m.waker.wake(m.waker.ctx)
 	}

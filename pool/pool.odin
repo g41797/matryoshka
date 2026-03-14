@@ -206,38 +206,41 @@ get :: proc(
 }
 
 // put returns msg to the free-list.
-// Returns msg if it came from a different allocator (foreign — caller must free it).
-// Returns nil if msg was recycled into the pool or freed by the pool.
-// No-op if msg is nil (returns nil).
+// nil inner (msg^ == nil) → (nil, true) no-op.
+// own message: msg^ = nil, returned to free-list or freed → (nil, true).
+// foreign message (allocator differs): msg^ = nil, returns (ptr, false) — caller must free ptr.
 // Calls reset(.Put) before recycling, outside the mutex.
-put :: proc(p: ^Pool($T), msg: ^T) -> ^T where intrinsics.type_has_field(T, "node"),
+put :: proc(p: ^Pool($T), msg: ^Maybe(^T)) -> (^T, bool) where intrinsics.type_has_field(T, "node"),
 	intrinsics.type_field_type(T, "node") == list.Node,
 	intrinsics.type_has_field(T, "allocator"),
 	intrinsics.type_field_type(T, "allocator") == mem.Allocator {
-	if msg == nil {
-		return nil
+	if msg^ == nil {
+		return nil, true // nil inner — no-op
 	}
+	ptr := (msg^).?
 
-	// Foreign message: wrong allocator — return to caller.
-	if msg.allocator != p.allocator {
-		return msg
+	// Foreign message: wrong allocator — nil caller's var, return ptr.
+	if ptr.allocator != p.allocator {
+		msg^ = nil
+		return ptr, false
 	}
 
 	if p.reset != nil {
-		p.reset(msg, .Put)
+		p.reset(ptr, .Put)
 	}
 
 	sync.mutex_lock(&p.mutex)
 
 	if p.state != .Active || (p.max_msgs > 0 && p.curr_msgs >= p.max_msgs) {
 		sync.mutex_unlock(&p.mutex)
-		free(msg, msg.allocator)
-		return nil
+		free(ptr, ptr.allocator)
+		msg^ = nil
+		return nil, true
 	}
 
 	pool_was_empty := p.list.head == nil // capture before push (Zig-aligned: only wake on empty→non-empty)
-	msg.node = {}
-	list.push_back(&p.list, &msg.node)
+	ptr.node = {}
+	list.push_back(&p.list, &ptr.node)
 	p.curr_msgs += 1
 	sync.cond_signal(&p.cond) // wake one waiting get(.Pool_Only)
 	was_flag := p.empty_was_returned
@@ -248,7 +251,22 @@ put :: proc(p: ^Pool($T), msg: ^T) -> ^T where intrinsics.type_has_field(T, "nod
 	if pool_was_empty && was_flag && waker.wake != nil {
 		waker.wake(waker.ctx)
 	}
-	return nil
+	msg^ = nil
+	return nil, true
+}
+
+// destroy_msg frees msg^ using the pool's allocator and sets msg^ = nil.
+// No-op if msg^ is nil. Use when send fails and the unsent message must be freed.
+destroy_msg :: proc(p: ^Pool($T), msg: ^Maybe(^T)) where intrinsics.type_has_field(T, "node"),
+	intrinsics.type_field_type(T, "node") == list.Node,
+	intrinsics.type_has_field(T, "allocator"),
+	intrinsics.type_field_type(T, "allocator") == mem.Allocator {
+	if msg^ == nil {
+		return
+	}
+	ptr := (msg^).?
+	free(ptr, p.allocator)
+	msg^ = nil
 }
 
 // destroy frees all messages in the free-list and marks the pool Closed.

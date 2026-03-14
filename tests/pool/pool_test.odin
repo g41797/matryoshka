@@ -126,7 +126,8 @@ test_pool_put_and_get :: proc(t: ^testing.T) {
 		return
 	}
 	orig.data = 42
-	pool_pkg.put(&p, orig)
+	orig_opt: Maybe(^Test_Msg) = orig
+	pool_pkg.put(&p, &orig_opt)
 
 	got, _ := pool_pkg.get(&p)
 	testing.expect(t, got != nil, "get after put should return non-nil")
@@ -148,9 +149,9 @@ test_pool_respects_max :: proc(t: ^testing.T) {
 	msg2, _ := pool_pkg.get(&p)
 	msg3, _ := pool_pkg.get(&p)
 
-	pool_pkg.put(&p, msg1) // curr_msgs = 1
-	pool_pkg.put(&p, msg2) // curr_msgs = 2
-	pool_pkg.put(&p, msg3) // exceeds max — pool frees msg3
+	msg1_opt: Maybe(^Test_Msg) = msg1; pool_pkg.put(&p, &msg1_opt) // curr_msgs = 1
+	msg2_opt: Maybe(^Test_Msg) = msg2; pool_pkg.put(&p, &msg2_opt) // curr_msgs = 2
+	msg3_opt: Maybe(^Test_Msg) = msg3; pool_pkg.put(&p, &msg3_opt) // exceeds max — pool frees msg3
 
 	testing.expect(t, p.curr_msgs == 2, "curr_msgs should stay at max after excess put")
 }
@@ -184,7 +185,8 @@ test_pool_closed_get :: proc(t: ^testing.T) {
 
 	// Get a fresh message (sets allocator), put it back into pool.
 	msg, _ := pool_pkg.get(&p)
-	pool_pkg.put(&p, msg)
+	msg_opt: Maybe(^Test_Msg) = msg
+	pool_pkg.put(&p, &msg_opt)
 
 	pool_pkg.destroy(&p) // marks closed, frees pool messages
 
@@ -201,7 +203,8 @@ test_pool_closed_put :: proc(t: ^testing.T) {
 	// Simulate a pool-owned message by setting allocator manually.
 	msg := new(Test_Msg)
 	msg.allocator = p.allocator // mark as pool-owned so put doesn't treat it as foreign
-	pool_pkg.put(&p, msg) // pool is closed — frees msg, returns nil
+	msg_opt: Maybe(^Test_Msg) = msg
+	pool_pkg.put(&p, &msg_opt) // pool is closed — frees msg, returns (nil, true)
 
 	testing.expect(t, p.curr_msgs == 0, "curr_msgs should stay 0 after put on closed pool")
 }
@@ -212,7 +215,8 @@ test_pool_nil_put :: proc(t: ^testing.T) {
 	pool_pkg.init(&p, reset = nil)
 	defer pool_pkg.destroy(&p)
 
-	pool_pkg.put(&p, nil) // no-op
+	nil_opt: Maybe(^Test_Msg) = nil
+	pool_pkg.put(&p, &nil_opt) // no-op
 	testing.expect(t, p.curr_msgs == 0, "curr_msgs should stay 0 after put(nil)")
 }
 
@@ -333,8 +337,10 @@ test_pool_put_foreign_returned :: proc(t: ^testing.T) {
 
 	// A message whose allocator field is zero (not from this pool's get).
 	foreign_msg := new(Test_Msg) // msg.allocator is zero-value, != p.allocator
-	ret := pool_pkg.put(&p, foreign_msg)
+	foreign_opt: Maybe(^Test_Msg) = foreign_msg
+	ret, ok := pool_pkg.put(&p, &foreign_opt)
 	testing.expect(t, ret == foreign_msg, "foreign message should be returned to caller")
+	testing.expect(t, !ok, "put of foreign message should return false")
 	if ret != nil {
 		free(ret) // caller must free it
 	}
@@ -351,8 +357,10 @@ test_pool_put_own_nil_return :: proc(t: ^testing.T) {
 	if msg == nil {
 		return
 	}
-	ret := pool_pkg.put(&p, msg)
+	msg_opt: Maybe(^Test_Msg) = msg
+	ret, ok := pool_pkg.put(&p, &msg_opt)
 	testing.expect(t, ret == nil, "put of own message should return nil")
+	testing.expect(t, ok, "put of own message should return true")
 }
 
 // ----------------------------------------------------------------------------
@@ -406,7 +414,8 @@ test_pool_reset_on_put :: proc(t: ^testing.T) {
 	}
 	msg.data = 0 // so we have a clean state
 
-	ret := pool_pkg.put(&p, msg) // reset(.Put) sets bit 1 → data=2, then recycled
+	msg_opt: Maybe(^Test_Msg) = msg
+	ret, _ := pool_pkg.put(&p, &msg_opt) // reset(.Put) sets bit 1 → data=2, then recycled
 	testing.expect(t, ret == nil, "put should return nil for own message")
 
 	// Get the recycled message back to inspect data.
@@ -459,7 +468,8 @@ test_pool_waker_wakes_on_put :: proc(t: ^testing.T) {
 
 	// Put a message — pool transitions empty→non-empty, wake must fire.
 	new_msg, _ := pool_pkg.get(&p) // .Always — allocates fresh
-	pool_pkg.put(&p, new_msg)
+	new_msg_opt: Maybe(^Test_Msg) = new_msg
+	pool_pkg.put(&p, &new_msg_opt)
 
 	got_wake := sync.sema_wait_with_timeout(&woke, time.Second)
 	testing.expect(t, got_wake, "waker.wake should be called when put fills an empty pool")
@@ -518,6 +528,7 @@ test_pool_length :: proc(t: ^testing.T) {
 	testing.expect(t, msg != nil, "get should return non-nil")
 	testing.expect(t, pool_pkg.length(&p) == 2, "length should be 2 after one get")
 
-	pool_pkg.put(&p, msg)
+	msg_opt: Maybe(^Test_Msg) = msg
+	pool_pkg.put(&p, &msg_opt)
 	testing.expect(t, pool_pkg.length(&p) == 3, "length should be 3 after put back")
 }

@@ -36,14 +36,14 @@ close_example :: proc() -> bool {
 	mb = {}
 
 	// Allocate two messages on the heap.
-	a := new(Msg)
-	a.data = 1
-	b := new(Msg)
-	b.data = 2
+	a: Maybe(^Msg) = new(Msg)
+	a.?.data = 1
+	b: Maybe(^Msg) = new(Msg)
+	b.?.data = 2
 
 	// Send them. Mailbox now owns the references.
-	mbox.send(&mb, a)
-	mbox.send(&mb, b)
+	mbox.send(&mb, &a)
+	mbox.send(&mb, &b)
 
 	// Close and get all undelivered messages back.
 	remaining, _ := mbox.close(&mb)

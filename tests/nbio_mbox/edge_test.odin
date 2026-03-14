@@ -82,7 +82,8 @@ _test_nbio_throttle_efficiency :: proc(t: ^testing.T, kind: nbio_mbox.Nbio_Wakeu
 	th := thread.create_and_start_with_data(&ctx, proc(data: rawptr) {
 		c := (^_TE_Ctx)(data)
 		for i in 0 ..< len(c.msgs) {
-			try_mbox.send(c.m, &c.msgs[i])
+			msg_opt: Maybe(^examples.Msg) = &c.msgs[i]
+			try_mbox.send(c.m, &msg_opt)
 		}
 	})
 
@@ -166,7 +167,8 @@ _test_nbio_burst_multiproducer :: proc(t: ^testing.T, kind: nbio_mbox.Nbio_Wakeu
 		threads[i] = thread.create_and_start_with_data(&ctxs[i], proc(data: rawptr) {
 			c := (^_BM_Ctx)(data)
 			for i in 0 ..< len(c.slab) {
-				try_mbox.send(c.m, &c.slab[i])
+				msg_opt: Maybe(^examples.Msg) = &c.slab[i]
+				try_mbox.send(c.m, &msg_opt)
 			}
 		})
 	}
@@ -243,7 +245,8 @@ _test_nbio_pool_constancy :: proc(t: ^testing.T, kind: nbio_mbox.Nbio_Wakeuper_K
 		th := thread.create_and_start_with_data(&ctx, proc(data: rawptr) {
 			c := (^_PC_Ctx)(data)
 			for i in 0 ..< len(c.msgs) {
-				try_mbox.send(c.m, &c.msgs[i])
+				msg_opt: Maybe(^examples.Msg) = &c.msgs[i]
+				try_mbox.send(c.m, &msg_opt)
 			}
 		})
 
@@ -324,9 +327,9 @@ _test_nbio_late_arrival :: proc(t: ^testing.T, kind: nbio_mbox.Nbio_Wakeuper_Kin
 	proc(data: rawptr) {
 		c := (^_LA_Ctx)(data)
 		// Send A first, then wait until main signals, then send B.
-		try_mbox.send(c.m, c.a)
+		a_opt: Maybe(^examples.Msg) = c.a; try_mbox.send(c.m, &a_opt)
 		sync.sema_wait(c.sema)
-		try_mbox.send(c.m, c.b)
+		b_opt: Maybe(^examples.Msg) = c.b; try_mbox.send(c.m, &b_opt)
 	},
 	)
 

@@ -38,7 +38,8 @@ test_send_and_receive :: proc(t: ^testing.T) {
 	mb: mbox.Mailbox(examples.Msg)
 	m := new(examples.Msg); m.data = 42
 
-	ok := mbox.send(&mb, m)
+	m_opt: Maybe(^examples.Msg) = m
+	ok := mbox.send(&mb, &m_opt)
 	testing.expect(t, ok, "send should return true")
 
 	got, err := mbox.wait_receive(&mb, 0)
@@ -80,7 +81,8 @@ test_close_blocks_send :: proc(t: ^testing.T) {
 
 	_, _ = mbox.close(&mb)
 
-	ok := mbox.send(&mb, m)
+	m_opt: Maybe(^examples.Msg) = m
+	ok := mbox.send(&mb, &m_opt)
 	testing.expect(t, !ok, "send to closed mailbox should return false")
 }
 
@@ -115,8 +117,10 @@ test_close_returns_remaining :: proc(t: ^testing.T) {
 	a := new(examples.Msg); a.data = 10
 	b := new(examples.Msg); b.data = 20
 
-	mbox.send(&mb, a)
-	mbox.send(&mb, b)
+	a_opt: Maybe(^examples.Msg) = a
+	mbox.send(&mb, &a_opt)
+	b_opt: Maybe(^examples.Msg) = b
+	mbox.send(&mb, &b_opt)
 
 	remaining, was_open := mbox.close(&mb)
 	testing.expect(t, was_open, "first close should return was_open=true")
@@ -195,7 +199,8 @@ test_reuse_via_zero :: proc(t: ^testing.T) {
 	_, _ = mbox.close(&mb)
 	mb = {} // reinitialize — safe after no waiters
 
-	ok := mbox.send(&mb, m)
+	m_opt: Maybe(^examples.Msg) = m
+	ok := mbox.send(&mb, &m_opt)
 	testing.expect(t, ok, "send after reinitialization should succeed")
 
 	got, err2 := mbox.wait_receive(&mb, 0)
@@ -214,9 +219,12 @@ test_fifo_order :: proc(t: ^testing.T) {
 	b := new(examples.Msg); b.data = 2
 	c := new(examples.Msg); c.data = 3
 
-	mbox.send(&mb, a)
-	mbox.send(&mb, b)
-	mbox.send(&mb, c)
+	a_opt: Maybe(^examples.Msg) = a
+	mbox.send(&mb, &a_opt)
+	b_opt: Maybe(^examples.Msg) = b
+	mbox.send(&mb, &b_opt)
+	c_opt: Maybe(^examples.Msg) = c
+	mbox.send(&mb, &c_opt)
 
 	got1, _ := mbox.wait_receive(&mb, 0)
 	got2, _ := mbox.wait_receive(&mb, 0)
@@ -239,7 +247,9 @@ test_wait_receive_gets_message :: proc(t: ^testing.T) {
 	m := new(examples.Msg)
 	m.data = 99
 
-	thread.run_with_poly_data2(&mb, m, proc(mb: ^mbox.Mailbox(examples.Msg), m: ^examples.Msg) {
+	// Pass ?^Msg to the thread so it can call send with ^?^Msg.
+	m_opt: Maybe(^examples.Msg) = m
+	thread.run_with_poly_data2(&mb, &m_opt, proc(mb: ^mbox.Mailbox(examples.Msg), m: ^Maybe(^examples.Msg)) {
 		time.sleep(5 * time.Millisecond)
 		mbox.send(mb, m)
 	})
@@ -318,7 +328,8 @@ test_many_waiters_one_message :: proc(t: ^testing.T) {
 	time.sleep(20 * time.Millisecond)
 	msgs := make([]examples.Msg, 1); defer delete(msgs)
 	msgs[0].data = 42
-	mbox.send(&mb, &msgs[0])
+	msg0_opt: Maybe(^examples.Msg) = &msgs[0]
+	mbox.send(&mb, &msg0_opt)
 
 	sync.sema_wait(&done) // wait for the 1 thread that got the message
 	mbox.close(&mb) // wake the remaining 4
@@ -421,7 +432,8 @@ test_heavy_racing :: proc(t: ^testing.T) {
 		sender_threads[i] = thread.create_and_start_with_data(&sender_ctxs[i], proc(data: rawptr) {
 			c := (^_Sender_Ctx)(data)
 			for j in 0 ..< len(c.msgs) {
-				mbox.send(c.mb, &c.msgs[j])
+				msg_opt: Maybe(^examples.Msg) = &c.msgs[j]
+				mbox.send(c.mb, &msg_opt)
 			}
 		})
 	}

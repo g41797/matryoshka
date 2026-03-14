@@ -32,9 +32,15 @@ init :: proc(q: ^Queue($T)) where intrinsics.type_has_field(T, "node"),
 }
 
 // push adds msg to the queue. Safe to call from multiple threads at the same time.
-push :: proc(q: ^Queue($T), msg: ^T) where intrinsics.type_has_field(T, "node"),
+// nil inner (msg^ == nil) is a no-op and returns false.
+// On success: msg^ = nil (ownership transferred to queue), returns true.
+push :: proc(q: ^Queue($T), msg: ^Maybe(^T)) -> bool where intrinsics.type_has_field(T, "node"),
 	intrinsics.type_field_type(T, "node") == list.Node {
-	node := &msg.node
+	if msg^ == nil {
+		return false
+	}
+	ptr := (msg^).?
+	node := &ptr.node
 	intrinsics.atomic_store(&node.next, nil)
 	prev := intrinsics.atomic_exchange(&q.head, node)
 	// Stall window: between the exchange above and the store below,
@@ -42,6 +48,8 @@ push :: proc(q: ^Queue($T), msg: ^T) where intrinsics.type_has_field(T, "node"),
 	// Consumer must treat nil as "try again". The next pop will succeed.
 	intrinsics.atomic_store(&prev.next, node)
 	intrinsics.atomic_add(&q.len, 1)
+	msg^ = nil
+	return true
 }
 
 // pop removes and returns one message. Call from a single consumer thread only.

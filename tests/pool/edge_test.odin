@@ -106,7 +106,8 @@ test_pool_get_timeout_put_wakes :: proc(t: ^testing.T) {
 		// Signal the waiter that we're ready, then put the message back.
 		sync.sema_post(&c.ready)
 		time.sleep(5 * time.Millisecond)
-		pool_pkg.put(c.pool, c.msg)
+		c_msg_opt: Maybe(^Test_Msg) = c.msg
+		pool_pkg.put(c.pool, &c_msg_opt)
 	},
 	)
 
@@ -196,7 +197,8 @@ test_pool_many_waiters_partial_fill :: proc(t: ^testing.T) {
 		pre_msgs[i], _ = pool_pkg.get(&p)
 	}
 	for i in 0 ..< 5 {
-		pool_pkg.put(&p, pre_msgs[i])
+		pre_opt: Maybe(^Test_Msg) = pre_msgs[i]
+		pool_pkg.put(&p, &pre_opt)
 	}
 
 	for _ in 0 ..< N {
@@ -305,7 +307,8 @@ test_pool_stress_high_volume :: proc(t: ^testing.T) {
 			sync.sema_wait(c.start)
 			for _ in 0 ..< 1000 {
 				msg, _ := pool_pkg.get(c.pool)
-				pool_pkg.put(c.pool, msg)
+				msg_opt: Maybe(^Test_Msg) = msg
+				pool_pkg.put(c.pool, &msg_opt)
 			}
 			sync.sema_post(c.done)
 		})
@@ -351,7 +354,8 @@ test_pool_max_limit_racing :: proc(t: ^testing.T) {
 			sync.sema_wait(c.start)
 			msg, _ := pool_pkg.get(c.pool)
 			if msg != nil {
-				pool_pkg.put(c.pool, msg)
+				msg_opt: Maybe(^Test_Msg) = msg
+				pool_pkg.put(c.pool, &msg_opt)
 			}
 			sync.sema_post(c.done)
 		})
@@ -403,7 +407,8 @@ test_pool_shutdown_race :: proc(t: ^testing.T) {
 				if status != .Ok {
 					break
 				}
-				pool_pkg.put(c.pool, msg)
+				msg_opt: Maybe(^Test_Msg) = msg
+				pool_pkg.put(c.pool, &msg_opt)
 			}
 			sync.sema_post(c.done)
 		})
@@ -494,11 +499,11 @@ test_pool_allocator_integrity :: proc(t: ^testing.T) {
 	testing.expect(t, msg5 != nil, "msg5 should be non-nil")
 
 	// Put all 5 back.
-	pool_pkg.put(&p, msg1)
-	pool_pkg.put(&p, msg2)
-	pool_pkg.put(&p, msg3)
-	pool_pkg.put(&p, msg4)
-	pool_pkg.put(&p, msg5)
+	msg1_opt: Maybe(^Test_Msg) = msg1; pool_pkg.put(&p, &msg1_opt)
+	msg2_opt: Maybe(^Test_Msg) = msg2; pool_pkg.put(&p, &msg2_opt)
+	msg3_opt: Maybe(^Test_Msg) = msg3; pool_pkg.put(&p, &msg3_opt)
+	msg4_opt: Maybe(^Test_Msg) = msg4; pool_pkg.put(&p, &msg4_opt)
+	msg5_opt: Maybe(^Test_Msg) = msg5; pool_pkg.put(&p, &msg5_opt)
 	testing.expect(t, p.curr_msgs == 5, "all 5 messages should be in pool")
 
 	// destroy frees all 5 via the counting allocator.

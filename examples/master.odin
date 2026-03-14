@@ -26,7 +26,8 @@ master_shutdown :: proc(m: ^Master) {
 	remaining, _ := mbox.close(&m.inbox)
 	for node := list.pop_front(&remaining); node != nil; node = list.pop_front(&remaining) {
 		msg := container_of(node, Msg, "node")
-		pool_pkg.put(&m.pool, msg) // back to pool, not freed
+		msg_opt: Maybe(^Msg) = msg
+		pool_pkg.put(&m.pool, &msg_opt) // back to pool, not freed
 	}
 	pool_pkg.destroy(&m.pool)
 }
@@ -50,10 +51,12 @@ master_example :: proc() -> bool {
 	}
 	msg.data = 42
 
-	ok := mbox.send(&m.inbox, msg)
+	msg_opt: Maybe(^Msg) = msg
+	ok := mbox.send(&m.inbox, &msg_opt)
 	if !ok {
 		// send failed — return message to pool before shutdown
-		pool_pkg.put(&m.pool, msg)
+		// msg_opt is still non-nil (send failed, caller retains ownership)
+		pool_pkg.put(&m.pool, &msg_opt)
 		master_shutdown(&m)
 		return false
 	}

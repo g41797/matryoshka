@@ -50,12 +50,12 @@ _test_loop_basic :: proc(t: ^testing.T, kind: nbio_mbox.Nbio_Wakeuper_Kind) {
 		try_mbox.destroy(m)
 	}
 
-	a := new(examples.Msg); a.data = 1
-	b := new(examples.Msg); b.data = 2
-	c := new(examples.Msg); c.data = 3
-	try_mbox.send(m, a)
-	try_mbox.send(m, b)
-	try_mbox.send(m, c)
+	a_ptr := new(examples.Msg); a_ptr.data = 1
+	b_ptr := new(examples.Msg); b_ptr.data = 2
+	c_ptr := new(examples.Msg); c_ptr.data = 3
+	a_opt: Maybe(^examples.Msg) = a_ptr; try_mbox.send(m, &a_opt)
+	b_opt: Maybe(^examples.Msg) = b_ptr; try_mbox.send(m, &b_opt)
+	c_opt: Maybe(^examples.Msg) = c_ptr; try_mbox.send(m, &c_opt)
 
 	testing.expect(t, try_mbox.length(m) == 3, "length should be 3 after 3 sends")
 
@@ -104,8 +104,8 @@ _test_loop_close_and_drain :: proc(t: ^testing.T, kind: nbio_mbox.Nbio_Wakeuper_
 
 	a := new(examples.Msg); a.data = 10
 	b := new(examples.Msg); b.data = 20
-	try_mbox.send(m, a)
-	try_mbox.send(m, b)
+	a_opt: Maybe(^examples.Msg) = a; try_mbox.send(m, &a_opt)
+	b_opt: Maybe(^examples.Msg) = b; try_mbox.send(m, &b_opt)
 
 	remaining, was_open := try_mbox.close(m)
 	testing.expect(t, was_open, "first close should return was_open=true")
@@ -118,7 +118,8 @@ _test_loop_close_and_drain :: proc(t: ^testing.T, kind: nbio_mbox.Nbio_Wakeuper_
 	testing.expect(t, count == 2, "close should return 2 remaining messages")
 
 	extra := new(examples.Msg); extra.data = 99; defer free(extra)
-	ok := try_mbox.send(m, extra)
+	extra_opt: Maybe(^examples.Msg) = extra
+	ok := try_mbox.send(m, &extra_opt)
 	testing.expect(t, !ok, "send after close should return false")
 }
 
@@ -160,7 +161,8 @@ _test_loop_wake_on_send :: proc(t: ^testing.T, kind: nbio_mbox.Nbio_Wakeuper_Kin
 	proc(data: rawptr) {
 		c := (^_Loop_Wake_Ctx)(data)
 		time.sleep(10 * time.Millisecond) // Give loop time to enter tick()
-		try_mbox.send(c.m, c.msg)
+		msg_opt: Maybe(^examples.Msg) = c.msg
+		try_mbox.send(c.m, &msg_opt)
 	},
 	)
 
@@ -243,7 +245,8 @@ _test_loop_high_freq_send :: proc(t: ^testing.T, kind: nbio_mbox.Nbio_Wakeuper_K
 	th := thread.create_and_start_with_data(&ctx, proc(data: rawptr) {
 		c := (^_HF_Ctx)(data)
 		for i in 0 ..< len(c.msgs) {
-			try_mbox.send(c.m, &c.msgs[i])
+			msg_opt: Maybe(^examples.Msg) = &c.msgs[i]
+			try_mbox.send(c.m, &msg_opt)
 		}
 	})
 
