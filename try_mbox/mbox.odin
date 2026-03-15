@@ -52,6 +52,9 @@ init :: proc(
 // Safe to call from multiple threads.
 send :: proc(m: ^Mbox($T), msg: ^Maybe(^T)) -> bool where intrinsics.type_has_field(T, "node"),
 	intrinsics.type_field_type(T, "node") == list.Node {
+	if msg^ == nil {
+		return false
+	}
 	if intrinsics.atomic_load(&m.closed) {
 		return false
 	}

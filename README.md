@@ -1,6 +1,6 @@
 ![](_logo/ring_mbox.png)
 
-# odin-itc
+# Odin inter-thread communication
 
 The endless inter-threaded game...
 

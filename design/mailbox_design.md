@@ -180,8 +180,8 @@ nbio.wake_up(m.loop)
 ## Best Practices
 
 ### 1. Ownership
-Once a message is sent, do not read or write to it. 
-The mailbox owns the reference while it is queued. 
+Once a message is sent, do not read or write to it.
+The mailbox owns the reference while it is queued.
 You only get ownership back when you `receive()` it or get it from `close()`.
 
 ### 2. Shutdown
@@ -506,6 +506,62 @@ Only free if `send` returned false (msg^ is still non-nil).
 
 ---
 
+## Long story short
+
+The pattern uses ^Maybe(^T) (Odin's equivalent of Zig's *?*T) to make thread ownership transfer unambiguous and safe.
+
+  Core idea: Pass a pointer-to-optional to the callee. On success, the callee zeroes the caller's variable. After any successful send/push/put, the
+  caller's pointer is nil — it cannot accidentally reuse it.
+
+  Key rules:
+  - msg^ == nil on input → always a no-op, safe to call unconditionally in cleanup
+  - Success → callee sets msg^ = nil, returns true
+  - mbox.send on closed mailbox → returns false, msg^ unchanged (caller still owns it, must free)
+  - Only correct Odin syntax is ^Maybe(^T) — ?^T and ^?^T are invalid
+
+  Four affected functions: mpsc.push, mbox.send, try_mbox.send, pool.put
+
+  One exception: pool.put returns (^T, bool) — if message is "foreign" (different allocator), it zeroes msg^ but returns the raw pointer so caller
+  can free it with the right allocator.
+
+  Error helper: pool.destroy_msg — call when send returns false; frees the unsent message and nils msg^.
+
+  What does NOT use this pattern: receive-side functions (wait_receive, try_receive_batch, pool.get, mbox.close) — they give ownership TO the
+  caller, not take it away.
+
+---
+
+## Nil on Input — Behavior Summary
+
+| Function | nil guard | returns | `msg^` after |
+|---|---|---|---|
+| `mpsc.push` | `if msg^ == nil { return false }` | `false` | unchanged (nil) |
+| `mbox.send` | `if msg^ == nil { return false }` | `false` | unchanged (nil) |
+| `try_mbox.send` | `if msg^ == nil { return false }` | `false` | unchanged (nil) |
+| `pool.put` | `if msg^ == nil { return nil, true }` | `(nil, true)` | unchanged (nil) |
+
+---
+
+## Non-Nil on Input — Behavior Summary
+
+| Function | condition | returns | `msg^` after |
+|---|---|---|---|
+| `mpsc.push` | non-nil (always succeeds) | `true` | `nil` |
+| `mbox.send` | closed | `false` | unchanged (caller retains ownership) |
+| `mbox.send` | success | `true` | `nil` |
+| `try_mbox.send` | closed | `false` | unchanged (caller retains ownership) |
+| `try_mbox.send` | success | `true` | `nil` |
+| `pool.put` | foreign message (allocator differs) | `(ptr, false)` | `nil` — caller must free returned `ptr` |
+| `pool.put` | own message, pool closed or full | `(nil, true)` | `nil` — pool freed it internally |
+| `pool.put` | own message, pool active | `(nil, true)` | `nil` — recycled to free-list |
+
+Key observations:
+- `mpsc.push` has only one non-nil outcome — it always succeeds.
+- `mbox.send` and `try_mbox.send` are symmetric: closed leaves `msg^` intact, success nils it.
+- `pool.put` has three outcomes, all nil `msg^`, but only the foreign case requires caller action (free the returned pointer).
+
+---
+
 ## Zig and Odin: The Same Pattern in Two Languages
 
 Both Zig and Odin arrived at the same design for ownership transfer.
@@ -670,3 +726,548 @@ In Odin: `put`, `send`, `push` all take `^Maybe(^T)`.
 
 Same problem. Same solution. Different syntax.
 
+---
+
+## Pool Design
+
+### Overview
+
+A pool is a thread-safe free-list of reusable message objects.
+
+The mailbox moves messages between threads. The pool gives them back to be reused.
+
+Without a pool, every send requires a `new` and every receive requires a `free`.
+With a pool, the same objects travel in a cycle: get → send → receive → put → get → ...
+
+No new allocations during the run. No GC pressure.
+
+---
+
+### Stage 1 — Simple Pool
+
+The basic idea: keep a list of pre-allocated messages. Hand them out. Take them back.
+
+```
+init   → pre-allocate N messages, put them in the free-list
+get    → pop one message from the free-list
+           free-list empty + .Always strategy → allocate a new one
+put    → push the message back onto the free-list
+destroy → free all messages still in the free-list
+```
+
+#### API
+
+- `init(initial_msgs, ...)` — pre-fills the free-list. `initial_msgs = 0` is valid (start empty).
+- `get(strategy) -> (^T, Pool_Status)` — returns a message. Two strategies:
+  - `.Always` (default) — allocates a new message if the free-list is empty.
+  - `.Pool_Only` — returns `(nil, .Pool_Empty)` if the free-list is empty.
+- `put(msg: ^Maybe(^T)) -> (^T, bool)` — returns a message to the free-list. Uses the ownership transfer pattern (see above).
+- `destroy()` — frees all free-list messages and marks the pool closed.
+
+#### Lifecycle states
+
+| State | Meaning |
+|---|---|
+| `Uninit` | `init` not yet called |
+| `Active` | running — `get` and `put` work |
+| `Closed` | `destroy` was called — `get` returns `(nil, .Closed)` |
+
+#### reset hook
+
+`init` accepts an optional `reset` proc:
+```odin
+reset: proc(msg: ^T, e: Pool_Event)
+```
+
+Called outside the mutex:
+- On `get`: called for recycled messages only (not fresh allocations). Use it to wipe stale state before the caller gets the message.
+- On `put`: called before the message goes back to the free-list. Use it to detect stale pointers early.
+
+`Pool_Event` tells the hook which path triggered it: `.Get` or `.Put`.
+
+---
+
+### Stage 2 — Count Limit and Get Timeout
+
+#### Count limit
+
+`init` accepts `max_msgs`. This caps the free-list size.
+
+When `put` is called and `curr_msgs >= max_msgs`, the message is freed instead of recycled.
+The caller's variable is still nilled. The call still returns `(nil, true)`.
+
+`max_msgs = 0` means unlimited.
+
+#### Get timeout
+
+Useful with `.Pool_Only`. The caller does not want to allocate — only reuse.
+
+`get(strategy: .Pool_Only, timeout)` blocks if the free-list is empty:
+
+| timeout | behavior |
+|---|---|
+| `0` | return immediately with `(nil, .Pool_Empty)` |
+| `< 0` | wait forever until `put` or `destroy` |
+| `> 0` | wait up to that duration; return `(nil, .Pool_Empty)` on expiry |
+
+When `destroy` is called while a caller is waiting, the caller wakes and gets `(nil, .Closed)`.
+
+---
+
+### Stage 3 — WakeUper
+
+`Mailbox` uses a condition variable to wake blocked receivers.
+`Pool` uses the same mechanism for blocked `get(.Pool_Only)` calls.
+
+But a non-blocking consumer (nbio event loop) cannot block inside `get`.
+It calls `get(.Pool_Only, 0)`, gets `Pool_Empty`, and needs to know when to try again.
+
+That is what the `WakeUper` is for.
+
+#### How it works
+
+`init` accepts a `waker: wakeup.WakeUper` (zero value = no waker).
+
+When `get(.Pool_Only, 0)` returns `Pool_Empty`, the pool sets an internal flag `empty_was_returned`.
+
+When the next `put` transitions the free-list from empty to non-empty AND the flag is set:
+- `put` clears the flag.
+- `put` calls `waker.wake` outside the mutex.
+
+The waker signals the consumer to retry `get`.
+
+This is a one-shot signal per empty→non-empty transition. Multiple `put` calls in a row produce one wake, not many.
+
+#### destroy and waker
+
+`destroy` calls `waker.close` to free waker resources.
+It does NOT call `waker.wake`. Callers polling with `get(.Pool_Only, 0)` will get `(nil, .Closed)` on the next call.
+
+---
+
+### Requirements for the Message Object
+
+Pool adds one requirement on top of what `Mailbox` already needs.
+
+| Field | Type | Required by | Purpose |
+|---|---|---|---|
+| `node` | `list.Node` | mailbox + pool | intrusive list link |
+| `allocator` | `mem.Allocator` | pool only | detect foreign messages in `put` |
+
+`pool.get` sets `msg.allocator = p.allocator` on every returned message.
+`pool.put` compares `ptr.allocator` with `p.allocator` to detect foreign messages.
+
+A foreign message (allocator differs) is not recycled. `put` returns `(ptr, false)` and the caller frees it.
+
+Both fields are enforced at compile time by `where` clauses on all pool procs.
+
+```odin
+Msg :: struct {
+    node:      list.Node,     // required by mailbox and pool
+    allocator: mem.Allocator, // required by pool
+    data:      int,
+}
+```
+
+---
+
+### Examples
+
+#### Basic: heap fallback
+
+```odin
+p: pool.Pool(Msg)
+pool.init(&p, initial_msgs = 4, max_msgs = 0, reset = nil)
+defer pool.destroy(&p)
+
+// producer
+msg, status := pool.get(&p)   // from free-list or heap
+if status != .Ok {
+    // handle allocation failure
+}
+m: Maybe(^Msg) = msg
+m.?.data = 42
+ok := mbox.send(&mb, &m)
+if !ok {
+    pool.destroy_msg(&p, &m)   // mailbox closed — free the unsent message
+}
+
+// consumer
+got, _ := mbox.wait_receive(&mb)
+// use got.data
+m2: Maybe(^Msg) = got
+_, accepted := pool.put(&p, &m2)   // back to free-list
+if !accepted {
+    // got was foreign — free with correct allocator
+}
+```
+
+#### Pool-only with timeout
+
+```odin
+// blocks up to 100ms; returns Pool_Empty if nothing available
+msg, status := pool.get(&p, .Pool_Only, 100 * time.Millisecond)
+if status != .Ok {
+    // no message available
+}
+```
+
+#### Error path: send failed
+
+```odin
+msg, _ := pool.get(&p)
+m: Maybe(^Msg) = msg
+ok := mbox.send(&mb, &m)
+if !ok {
+    // mailbox closed — m is still non-nil, we own it
+    pool.destroy_msg(&p, &m)   // free and nil
+}
+```
+
+#### Foreign message in put
+
+```odin
+msg := new(Msg, other_allocator)
+m: Maybe(^Msg) = msg
+ptr, accepted := pool.put(&p, &m)
+// m is nil in both cases
+if !accepted {
+    free(ptr, other_allocator)
+}
+```
+
+This is correct when `Msg` has no dynamic resources inside.
+
+If `Msg` contains heap fields (slices, strings, handles), `free` alone is not enough.
+It leaks the internal resources.
+
+A `Msg` with internal resources should have its own `destroy` proc.
+The `destroy` proc frees internal resources first, then frees the struct itself.
+
+```odin
+// Msg with internal resources:
+Msg :: struct {
+    node:      list.Node,
+    allocator: mem.Allocator,
+    name:      string,   // heap-allocated
+}
+
+msg_destroy :: proc(msg: ^Msg) {
+    delete(msg.name, msg.allocator)   // free internal resources first
+    free(msg, msg.allocator)          // then free the struct
+}
+```
+
+The caller uses `msg_destroy` instead of raw `free`:
+
+```odin
+if !accepted {
+    msg_destroy(ptr)   // handles everything
+}
+```
+
+Rule: `free` alone is only correct for plain data structs.
+A `Msg` with internal resources must have a `destroy` proc.
+The pool cannot know what is inside. Only the caller can.
+
+#### Similarity with Mailbox
+
+Both mailbox and pool:
+- Use intrusive lists. No allocation per operation.
+- Use `^Maybe(^T)` for ownership transfer (`send`, `put`, `push`).
+- Use `close`/`destroy` to shut down and wake blocked callers.
+- Use `WakeUper` to notify non-blocking consumers.
+
+The difference:
+- Mailbox moves messages from sender to receiver.
+- Pool moves messages from consumer back to producer.
+
+They work together. One message object travels the full cycle.
+
+---
+
+## Idioms
+
+Collected patterns and advice. Each has come up across the design.
+
+---
+
+### The two silent bugs
+
+Before any idioms: the two bugs these patterns prevent.
+
+**Bug 1: use-after-send.**
+
+```odin
+// WRONG
+ptr := new(Msg)
+ptr.data = 1
+mbox.send(&mb, ptr)   // old API — takes ^T, not ^Maybe(^T)
+ptr.data = 2          // receiver may already own this
+```
+
+After `send`, the receiver owns the message.
+The sender must not read or write it.
+There is no compiler error. The race is silent.
+
+**Bug 2: leak on failed send.**
+
+```odin
+// WRONG
+ptr := new(Msg)
+mbox.send(&mb, ptr)   // return value ignored
+// if send returned false (closed), ptr leaks — forever
+```
+
+`send` returns false when the mailbox is closed.
+Ignoring the return value leaks the message.
+No crash. No warning. Silent leak.
+
+---
+
+### Idiom 1: Maybe as container
+
+**Problem:** after `send`, the pointer must be gone from the sender.
+The caller cannot enforce this on itself.
+
+**Fix:** wrap in `Maybe`. The callee zeroes the caller's variable.
+
+```odin
+m: Maybe(^Msg) = new(Msg)   // declare as Maybe from the start
+m.?.data = 42               // fill via .?
+ok := mbox.send(&mb, &m)    // callee sets m = nil on success
+// m is nil — cannot reuse, cannot double-free
+```
+
+Rule: declare `m: Maybe(^Msg) = new(...)`, fill via `m.?.field`, pass `&m`.
+One owner from the start. No intermediate raw pointer.
+
+Exception: keep a raw pointer only when a helper proc requires `^Msg`.
+
+---
+
+### Idiom 2: defer with pool.put
+
+**Nil inner is a no-op.** If send succeeds, `m` is nil before `defer` fires.
+`pool.put` with nil inner returns `(nil, true)` immediately.
+
+```odin
+msg, _ := pool.get(&p)
+m: Maybe(^Msg) = msg
+defer pool.put(&p, &m)      // safe: no-op if send already transferred ownership
+
+ok := mbox.send(&mb, &m)
+if !ok {
+    // defer will handle cleanup — or call destroy_msg here explicitly
+}
+```
+
+`defer pool.put(&p, &m)` is safe in all paths:
+- send succeeded → `m` is nil → put is a no-op.
+- send failed → `m` is non-nil → put recycles or frees.
+
+---
+
+### Idiom 3: dispose signature contract
+
+`dispose` must accept `^Maybe(^T)`, not `^T`.
+It must treat nil inner as a no-op.
+
+This is the same contract as `pool.put` and `mbox.send`.
+
+```odin
+dispose :: proc(msg: ^Maybe(^DisposableMsg)) {
+    if msg^ == nil { return }      // nil inner — no-op
+    ptr := (msg^).?
+    delete(ptr.name, ptr.allocator)
+    free(ptr, ptr.allocator)
+    msg^ = nil
+}
+```
+
+Without this contract, `defer dispose(&m)` is not safe:
+if send already transferred ownership and `m` is nil, a raw-pointer dispose would dereference nil.
+
+---
+
+### Idiom 4: defer with dispose
+
+Works only when `dispose` follows the `^Maybe(^T)` contract above.
+
+```odin
+m: Maybe(^DisposableMsg) = new(DisposableMsg)
+defer dispose(&m)               // safe: no-op if m is nil
+
+m.?.name = strings.clone("hello")
+ok := mbox.send(&mb, &m)
+// if ok: m is nil, defer is a no-op
+// if !ok: m is non-nil, defer calls dispose
+```
+
+Pattern: allocate, set up resources, defer dispose, then send.
+If send fails for any reason, defer cleans up.
+
+---
+
+### Idiom 5: DisposableMsg — full lifecycle
+
+A message with internal heap resources needs two things:
+- `dispose` — final cleanup when the message is done.
+- optionally `reset` — hygiene when the message is reused via pool.
+
+```odin
+DisposableMsg :: struct {
+    node:      list.Node,
+    allocator: mem.Allocator,
+    name:      string,          // heap-allocated
+}
+
+// Called by pool.get (before handing to caller) and pool.put (before free-list).
+// Clears stale fields. Does NOT free internal resources.
+disposable_reset :: proc(msg: ^DisposableMsg) {
+    msg.name = ""   // clear stale reference — pool may reuse this slot
+}
+
+// Called by the caller when the message is permanently done.
+// Frees all internal resources, then frees the struct.
+dispose :: proc(msg: ^Maybe(^DisposableMsg)) {
+    if msg^ == nil { return }
+    ptr := (msg^).?
+    delete(ptr.name, ptr.allocator)   // free internal resources first
+    free(ptr, ptr.allocator)          // then free the struct
+    msg^ = nil
+}
+```
+
+Full lifecycle:
+
+```odin
+// get from pool — reset runs automatically
+msg, _ := pool.get(&p)
+m: Maybe(^DisposableMsg) = msg
+defer dispose(&m)
+
+m.?.name = strings.clone("hello", m.?.allocator)
+ok := mbox.send(&mb, &m)
+// defer handles cleanup if send failed
+```
+
+Receiver:
+
+```odin
+got, _ := mbox.wait_receive(&mb)
+// use got.name
+m2: Maybe(^DisposableMsg) = got
+_, accepted := pool.put(&p, &m2)   // reset runs automatically on put
+if !accepted {
+    // foreign message — must dispose manually
+    dispose(&m2)
+}
+```
+
+---
+
+### Idiom 6: foreign message with resources
+
+`pool.put` returns `(ptr, false)` when the message allocator differs from the pool allocator.
+
+If the message has internal resources, `free` alone leaks them.
+
+```odin
+// WRONG — leaks name
+if !accepted {
+    free(ptr, other_allocator)
+}
+
+// CORRECT
+if !accepted {
+    dispose(&m)   // or msg_destroy(ptr) — frees resources, then struct
+}
+```
+
+Use `dispose` (or `msg_destroy`) instead of raw `free` when the message has resources.
+
+---
+
+### Idiom 7: reset vs dispose
+
+Two different cleanup concerns.
+
+**`reset`** — message stays alive. It is being recycled.
+
+- Pool calls it automatically: on `get` before handing to caller, on `put` before free-list.
+- Use it to zero stale fields or close/reopen handles for reuse.
+- Does NOT free internal resources. Does NOT free the struct.
+- About **reuse hygiene**.
+
+**`dispose`** — message is done. Release everything.
+
+- Caller calls it. Pool and mailbox never call it.
+- Frees internal resources in order, then frees the struct.
+- About **final cleanup**.
+
+A `DisposableMsg` may need both: `reset` to refresh on reuse, `dispose` when permanently discarded.
+
+```odin
+// reset: called on every pool cycle — zero stale state
+disposable_reset :: proc(msg: ^DisposableMsg) {
+    msg.name = ""   // clear — do not delete, pool will reuse slot
+}
+
+// dispose: called once, when message is done
+dispose :: proc(msg: ^Maybe(^DisposableMsg)) {
+    if msg^ == nil { return }
+    ptr := (msg^).?
+    delete(ptr.name, ptr.allocator)
+    free(ptr, ptr.allocator)
+    msg^ = nil
+}
+```
+
+---
+
+### Idiom 8: dispose is advice, not a requirement
+
+Pool and mailbox enforce two fields at compile time:
+
+| | `node` | `allocator` | `dispose` |
+|---|---|---|---|
+| Required by code | yes | yes (pool only) | no |
+| Who needs it | mailbox + pool | pool | caller, when message has resources |
+| Enforced by | `where` clause | `where` clause | convention only |
+
+Key points:
+
+- Pool and mailbox enforce `node` and `allocator` because they need them to work.
+- `dispose` is different. Pool and mailbox do not know what is inside a message. They never call `dispose`.
+- Not every message needs `dispose`. A message with no internal resources needs nothing extra.
+- Resource cleanup is the caller's responsibility. `dispose` is the pattern to follow when the message owns resources beyond memory.
+- Memory is the last resource to release. File handles, sockets, and other OS resources must be closed first.
+- This is the Odin equivalent of a destructor — built by convention, not enforced by the compiler.
+
+Two examples side by side:
+
+```odin
+// Plain data — no dispose needed.
+// pool.put or pool.destroy_msg is enough.
+Msg :: struct {
+    node:      list.Node,
+    allocator: mem.Allocator,
+    data:      int,
+}
+
+// Message with resources — define dispose.
+DisposableMsg :: struct {
+    node:      list.Node,
+    allocator: mem.Allocator,
+    name:      string,   // heap-allocated — must be freed before struct
+}
+
+dispose :: proc(msg: ^Maybe(^DisposableMsg)) {
+    if msg^ == nil { return }
+    ptr := (msg^).?
+    delete(ptr.name, ptr.allocator)
+    free(ptr, ptr.allocator)
+    msg^ = nil
+}
+```
