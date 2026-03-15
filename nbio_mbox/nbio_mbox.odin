@@ -43,46 +43,28 @@ Nbio_Mailbox_Error :: enum {
 // _NBio_State holds the nbio event loop and keepalive timer for one nbio_mbox instance.
 @(private)
 _NBio_State :: struct {
-	loop:         ^nbio.Event_Loop,
-	keepalive:    ^nbio.Operation,
-	allocator:    mem.Allocator,
-	ref_count:    int, // atomic
-	wake_pending: bool, // atomic — guards the cross-thread timeout queue (capacity 128)
+	loop:      ^nbio.Event_Loop,
+	keepalive: ^nbio.Operation,
+	allocator: mem.Allocator,
 }
 
 // _noop is the required no-op callback for nbio operations (used by keepalive timer).
 @(private)
 _noop :: proc(_: ^nbio.Operation) {}
 
-// _noop_clear clears the wake_pending flag and releases a reference.
-// Runs in the event-loop thread after timeout fires.
-@(private)
-_noop_clear :: proc(_: ^nbio.Operation, state: ^_NBio_State) {
-	intrinsics.atomic_store(&state.wake_pending, false)
-	if intrinsics.atomic_add(&state.ref_count, -1) == 1 {
-		free(state, state.allocator)
-	}
-}
-
-// _nbio_wake fires a zero-duration timeout to wake the nbio event loop.
-// Uses an atomic CAS flag so at most one timeout is queued at a time, preventing
-// the 128-slot cross-thread queue from overflowing under high-frequency sends.
+// _nbio_wake wakes the nbio event loop via nbio.wake_up.
+// Uses QueueUserAPC on Windows — no cross-thread operation allocation, no 128-slot queue.
+// Safe to call from any thread.
 @(private)
 _nbio_wake :: proc(ctx: rawptr) {
 	if ctx == nil {
 		return
 	}
 	state := (^_NBio_State)(ctx)
-	// CAS false→true. Returns old value; if old != false, wake already pending — skip.
-	if intrinsics.atomic_compare_exchange_strong(&state.wake_pending, false, true) != false {
-		return
-	}
-	// Take a reference for the pending timeout task.
-	intrinsics.atomic_add(&state.ref_count, 1)
-	nbio.timeout_poly(0, state, _noop_clear, state.loop)
+	nbio.wake_up(state.loop)
 }
 
-// _nbio_close removes the keepalive timer and releases the primary reference.
+// _nbio_close removes the keepalive timer and frees state.
 // Must be called from the event-loop thread — nbio.remove panics cross-thread.
 @(private)
 _nbio_close :: proc(ctx: rawptr) {
@@ -94,11 +76,7 @@ _nbio_close :: proc(ctx: rawptr) {
 		nbio.remove(state.keepalive)
 		state.keepalive = nil
 	}
-	if intrinsics.atomic_add(&state.ref_count, -1) == 1 {
-		free(state, state.allocator) // no pending callback — free now
-	} else {
-		nbio.tick(0) // drain pending _noop_clear → it will free state
-	}
+	free(state, state.allocator)
 }
 
 @(private)
@@ -115,7 +93,6 @@ _init_timeout_wakeup :: proc(
 	}
 	state.loop = loop
 	state.allocator = allocator
-	state.ref_count = 1
 	state.keepalive = nbio.timeout(time.Hour * 24, _noop, loop)
 	if state.keepalive == nil {
 		free(state, allocator)
