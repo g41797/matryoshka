@@ -10,15 +10,26 @@ import "core:thread"
 // Heap-allocated so producer and consumer threads can hold its address safely.
 @(private)
 _Stress_Consumer :: struct {
-	pool:  pool_pkg.Pool(Msg),
-	inbox: mbox.Mailbox(Msg),
+	pool:  pool_pkg.Pool(DisposableMsg),
+	inbox: mbox.Mailbox(DisposableMsg),
 	done:  sync.Sema,
 }
 
-@(private)
-_stress_consumer_init :: proc(c: ^_Stress_Consumer, n: int) -> bool {
-	ok, _ := pool_pkg.init(&c.pool, initial_msgs = n, max_msgs = n, reset = nil)
-	return ok
+// create_stress_consumer is a factory proc that demonstrates Idiom 11: errdefer-dispose.
+// [itc: errdefer-dispose]
+create_stress_consumer :: proc(n: int) -> (c: ^_Stress_Consumer, ok: bool) {
+	raw := new(_Stress_Consumer) // [itc: heap-master]
+	if raw == nil { return }
+
+	c_opt: Maybe(^_Stress_Consumer) = raw
+	defer if !ok { _stress_consumer_dispose(&c_opt) }
+
+	init_ok, _ := pool_pkg.init(&raw.pool, initial_msgs = n, max_msgs = n, reset = disposable_reset)
+	if !init_ok { return }
+
+	c = raw
+	ok = true
+	return
 }
 
 @(private)
@@ -27,12 +38,12 @@ _stress_consumer_dispose :: proc(c: ^Maybe(^_Stress_Consumer)) { // [itc: dispos
 	if !ok || cp == nil {return}
 	remaining, _ := mbox.close(&cp.inbox)
 	for node := list.pop_front(&remaining); node != nil; node = list.pop_front(&remaining) {
-		msg := container_of(node, Msg, "node")
-		msg_opt: Maybe(^Msg) = msg
+		msg := container_of(node, DisposableMsg, "node")
+		msg_opt: Maybe(^DisposableMsg) = msg
 		ptr, accepted := pool_pkg.put(&cp.pool, &msg_opt)
 		if !accepted && ptr != nil {
-			p_opt: Maybe(^Msg) = ptr
-			_msg_dispose(&p_opt) // [itc: foreign-dispose]
+			p_opt: Maybe(^DisposableMsg) = ptr
+			disposable_dispose(&p_opt) // [itc: foreign-dispose]
 		}
 	}
 	pool_pkg.destroy(&cp.pool)
@@ -45,9 +56,8 @@ stress_example :: proc() -> bool {
 	N :: 10_000
 	P :: 10
 
-	sc := new(_Stress_Consumer) // [itc: heap-master]
-	if !_stress_consumer_init(sc, N) {
-		free(sc)
+	sc, ok := create_stress_consumer(N)
+	if !ok {
 		return false
 	}
 	sc_opt: Maybe(^_Stress_Consumer) = sc
@@ -65,14 +75,17 @@ stress_example :: proc() -> bool {
 					break
 				}
 				if err == .None {
-					msg_opt: Maybe(^Msg) = msg // [itc: maybe-container]
-					// Corrected tag: defer-put only for actual defer calls. 
-					// Here we just put back.
-					ptr, accepted := pool_pkg.put(&c.pool, &msg_opt)
-					if !accepted && ptr != nil {
-						p_opt: Maybe(^Msg) = ptr
-						_msg_dispose(&p_opt) // [itc: foreign-dispose]
+					msg_opt: Maybe(^DisposableMsg) = msg // [itc: maybe-container]
+					
+					// Demonstrating Idiom 2: defer-put with Idiom 6: foreign-dispose
+					defer { // [itc: defer-put]
+						ptr, accepted := pool_pkg.put(&c.pool, &msg_opt)
+						if !accepted && ptr != nil {
+							p_opt: Maybe(^DisposableMsg) = ptr
+							disposable_dispose(&p_opt) // [itc: foreign-dispose]
+						}
 					}
+					
 					count += 1
 				}
 			}
@@ -91,14 +104,13 @@ stress_example :: proc() -> bool {
 				for _ in 0 ..< N / P {
 					msg, _ := pool_pkg.get(&c.pool)
 					if msg != nil {
-						msg_opt: Maybe(^Msg) = msg // [itc: maybe-container]
+						msg_opt: Maybe(^DisposableMsg) = msg // [itc: maybe-container]
+						
+						// Idiom 4: defer-dispose handles cleanup on send failure
+						defer disposable_dispose(&msg_opt) // [itc: defer-dispose]
+						
 						if !mbox.send(&c.inbox, &msg_opt) {
-							// msg_opt still non-nil on failure
-							ptr, accepted := pool_pkg.put(&c.pool, &msg_opt)
-							if !accepted && ptr != nil {
-								p_opt: Maybe(^Msg) = ptr
-								_msg_dispose(&p_opt) // [itc: foreign-dispose]
-							}
+							// msg_opt still non-nil on failure, handled by defer
 						}
 					}
 				}

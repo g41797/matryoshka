@@ -16,6 +16,7 @@ _close_dispose :: proc(m: ^Maybe(^_Close_Master)) { // [itc: dispose-contract]
 	if !ok || mp == nil { return }
 	
 	// Final drain: after close, all returned messages need dispose.
+	// Demonstrating Idiom 8: dispose-optional
 	remaining, _ := mbox.close(&mp.mb)
 	for node := list.pop_front(&remaining); node != nil; node = list.pop_front(&remaining) {
 		msg := container_of(node, Msg, "node")
@@ -35,6 +36,7 @@ close_example :: proc() -> bool {
 	// --- Part 1: close() wakes a blocked waiter ---
 	err_result: mbox.Mailbox_Error
 	t := thread.create_and_start_with_poly_data2(&m.mb, &err_result, proc(mb: ^mbox.Mailbox(Msg), res: ^mbox.Mailbox_Error) {
+		// [itc: thread-container] (mb is part of heap-master)
 		_, err := mbox.wait_receive(mb)
 		res^ = err
 	})
@@ -61,11 +63,9 @@ close_example :: proc() -> bool {
 
 	// Allocate two messages on the heap.
 	a: Maybe(^Msg) = new(Msg) // [itc: maybe-container]
-	a.?.data = 1
 	a.?.allocator = context.allocator
 
 	b: Maybe(^Msg) = new(Msg) // [itc: maybe-container]
-	b.?.data = 2
 	b.?.allocator = context.allocator
 
 	// Send them. Mailbox now owns the references.

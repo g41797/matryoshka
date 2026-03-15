@@ -15,15 +15,26 @@ ROUNDS    :: 5
 // Heap-allocated so collector and player threads can hold its address safely.
 @(private)
 _Pool_Wait_Collector :: struct {
-	pool:  pool_pkg.Pool(Msg),
-	inbox: mbox.Mailbox(Msg),
+	pool:  pool_pkg.Pool(DisposableMsg),
+	inbox: mbox.Mailbox(DisposableMsg),
 	done:  sync.Sema,
 }
 
-@(private)
-_pool_wait_collector_init :: proc(c: ^_Pool_Wait_Collector) -> bool {
-	ok, _ := pool_pkg.init(&c.pool, initial_msgs = M_TOKENS, max_msgs = M_TOKENS, reset = nil)
-	return ok
+// create_pool_wait_collector is a factory proc that demonstrates Idiom 11: errdefer-dispose.
+// [itc: errdefer-dispose]
+create_pool_wait_collector :: proc() -> (c: ^_Pool_Wait_Collector, ok: bool) {
+	raw := new(_Pool_Wait_Collector) // [itc: heap-master]
+	if raw == nil { return }
+
+	c_opt: Maybe(^_Pool_Wait_Collector) = raw
+	defer if !ok { _pool_wait_collector_dispose(&c_opt) }
+
+	init_ok, _ := pool_pkg.init(&raw.pool, initial_msgs = M_TOKENS, max_msgs = M_TOKENS, reset = disposable_reset)
+	if !init_ok { return }
+
+	c = raw
+	ok = true
+	return
 }
 
 @(private)
@@ -32,12 +43,12 @@ _pool_wait_collector_dispose :: proc(c: ^Maybe(^_Pool_Wait_Collector)) { // [itc
 	if !ok || cp == nil {return}
 	remaining, _ := mbox.close(&cp.inbox)
 	for node := list.pop_front(&remaining); node != nil; node = list.pop_front(&remaining) {
-		msg := container_of(node, Msg, "node")
-		msg_opt: Maybe(^Msg) = msg
+		msg := container_of(node, DisposableMsg, "node")
+		msg_opt: Maybe(^DisposableMsg) = msg
 		ptr, accepted := pool_pkg.put(&cp.pool, &msg_opt)
 		if !accepted && ptr != nil {
-			p_opt: Maybe(^Msg) = ptr
-			_msg_dispose(&p_opt) // [itc: foreign-dispose]
+			p_opt: Maybe(^DisposableMsg) = ptr
+			disposable_dispose(&p_opt) // [itc: foreign-dispose]
 		}
 	}
 	pool_pkg.destroy(&cp.pool)
@@ -48,9 +59,8 @@ _pool_wait_collector_dispose :: proc(c: ^Maybe(^_Pool_Wait_Collector)) { // [itc
 // pool_wait_example shows N players sharing M tokens (M < N).
 // Players must wait (pool.get .Pool_Only, timeout=-1) until a token is returned.
 pool_wait_example :: proc() -> bool {
-	pc := new(_Pool_Wait_Collector) // [itc: heap-master]
-	if !_pool_wait_collector_init(pc) {
-		free(pc)
+	pc, ok := create_pool_wait_collector()
+	if !ok {
 		return false
 	}
 	pc_opt: Maybe(^_Pool_Wait_Collector) = pc
@@ -69,12 +79,17 @@ pool_wait_example :: proc() -> bool {
 					break
 				}
 				if err == .None {
-					msg_opt: Maybe(^Msg) = msg // [itc: maybe-container]
-					ptr, accepted := pool_pkg.put(&c.pool, &msg_opt)
-					if !accepted && ptr != nil {
-						p_opt: Maybe(^Msg) = ptr
-						_msg_dispose(&p_opt) // [itc: foreign-dispose]
+					msg_opt: Maybe(^DisposableMsg) = msg // [itc: maybe-container]
+					
+					// Demonstrating Idiom 2: defer-put with Idiom 6: foreign-dispose
+					defer { // [itc: defer-put]
+						ptr, accepted := pool_pkg.put(&c.pool, &msg_opt)
+						if !accepted && ptr != nil {
+							p_opt: Maybe(^DisposableMsg) = ptr
+							disposable_dispose(&p_opt) // [itc: foreign-dispose]
+						}
 					}
+					
 					count += 1
 				}
 			}
@@ -96,13 +111,13 @@ pool_wait_example :: proc() -> bool {
 					if status == .Closed {
 						break
 					}
-					msg_opt: Maybe(^Msg) = msg // [itc: maybe-container]
+					msg_opt: Maybe(^DisposableMsg) = msg // [itc: maybe-container]
+					
+					// Idiom 4: defer-dispose handles cleanup on send failure
+					defer disposable_dispose(&msg_opt) // [itc: defer-dispose]
+					
 					if !mbox.send(&c.inbox, &msg_opt) {
-						ptr, accepted := pool_pkg.put(&c.pool, &msg_opt)
-						if !accepted && ptr != nil {
-							p_opt: Maybe(^Msg) = ptr
-							_msg_dispose(&p_opt) // [itc: foreign-dispose]
-						}
+						// handled by defer
 					}
 				}
 			},

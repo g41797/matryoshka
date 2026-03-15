@@ -29,6 +29,22 @@ _Endless_Game_Master :: struct {
 	done: sync.Sema,
 }
 
+// create_endless_game_master is a factory proc that demonstrates Idiom 11: errdefer-dispose.
+// [itc: errdefer-dispose]
+create_endless_game_master :: proc() -> (m: ^_Endless_Game_Master, ok: bool) {
+	raw := new(_Endless_Game_Master) // [itc: heap-master]
+	if raw == nil { return }
+
+	m_opt: Maybe(^_Endless_Game_Master) = raw
+	defer if !ok { _endless_game_dispose(&m_opt) }
+
+	// ... potential further setup ...
+
+	m = raw
+	ok = true
+	return
+}
+
 @(private)
 _endless_game_dispose :: proc(m: ^Maybe(^_Endless_Game_Master)) { // [itc: dispose-contract]
 	mp, ok := m.?
@@ -38,9 +54,7 @@ _endless_game_dispose :: proc(m: ^Maybe(^_Endless_Game_Master)) { // [itc: dispo
 		remaining, _ := mbox.close(&mp.mboxes[i])
 		for node := list.pop_front(&remaining); node != nil; node = list.pop_front(&remaining) {
 			dice := (^Dice)(node)
-			dice_opt: Maybe(^Dice) = dice
-			// Simple dice free
-			if mp := dice_opt.?; mp != nil { free(mp) }
+			free(dice)
 		}
 	}
 	free(mp)
@@ -48,16 +62,14 @@ _endless_game_dispose :: proc(m: ^Maybe(^_Endless_Game_Master)) { // [itc: dispo
 }
 
 // endless_game_example shows 4 threads passing a single heap-allocated message in a circle.
-//
-// Player 1 → Player 2 → Player 3 → Player 4 → Player 1
-//
-// After 10,000 rolls the game is won.
-// The dice is allocated once and freed after all threads exit.
 endless_game_example :: proc() -> bool {
 	ROLLS :: 10_000
 	PLAYERS :: 4
 
-	m := new(_Endless_Game_Master) // [itc: heap-master]
+	m, ok := create_endless_game_master()
+	if !ok {
+		return false
+	}
 	m_opt: Maybe(^_Endless_Game_Master) = m
 	defer _endless_game_dispose(&m_opt) // [itc: defer-dispose]
 
@@ -98,8 +110,7 @@ endless_game_example :: proc() -> bool {
 		})
 	}
 
-	// Allocate the dice on the heap. One object, lives until free() below.
-	// Keep the_dice_ptr for post-game inspection — the_dice is nil after send.
+	// Allocate the dice on the heap. One object, lives until free() in dispose.
 	the_dice_ptr := new(Dice)
 	the_dice: Maybe(^Dice) = the_dice_ptr // [itc: maybe-container]
 	if !mbox.send(&m.mboxes[0], &the_dice) {
@@ -109,16 +120,10 @@ endless_game_example :: proc() -> bool {
 
 	sync.sema_wait(&m.done)
 
-	// Shutdown Handled by _endless_game_dispose
-
 	for i in 0 ..< PLAYERS {
 		thread.join(m.threads[i])
 		thread.destroy(m.threads[i])
 	}
 
-	// All threads are done. Check the result.
-	result := the_dice_ptr.rolls >= ROLLS
-	// Dice might be in a mailbox or held by a thread. 
-	// The dispose proc handles the final drain and free.
-	return result
+	return the_dice_ptr.rolls >= ROLLS
 }

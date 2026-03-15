@@ -3,18 +3,23 @@ package examples
 import mbox "../mbox"
 import mpsc "../mpsc"
 import pool_pkg "../pool"
-import list "core:container/intrusive/list"
-import "core:mem"
 import "core:sync"
 import "core:thread"
 
-// Echo_Msg is a message with a reply address.
-// Sent from a client to the server; server echoes it back via reply_to.
+// Echo_Msg uses the standard DisposableMsg with an added reply address.
 Echo_Msg :: struct {
-	node:      list.Node,
-	allocator: mem.Allocator,
-	data:      int,
-	reply_to:  ^mbox.Mailbox(Echo_Msg),
+	using base: DisposableMsg,
+	reply_to:   ^mbox.Mailbox(Echo_Msg),
+}
+
+// _echo_msg_dispose handles the embedded DisposableMsg cleanup.
+// [itc: dispose-contract]
+_echo_msg_dispose :: proc(msg: ^Maybe(^Echo_Msg)) {
+	if msg^ == nil { return }
+	ptr := (msg^).?
+	base_opt: Maybe(^DisposableMsg) = &ptr.base
+	disposable_dispose(&base_opt)
+	msg^ = nil
 }
 
 // _Echo_Server owns pool, queue, and sema for the server thread.
@@ -27,13 +32,24 @@ _Echo_Server :: struct {
 	count: int,
 }
 
-@(private)
-_echo_server_init :: proc(srv: ^_Echo_Server, n_msgs: int, n_clients: int) -> bool {
-	ok, _ := pool_pkg.init(&srv.pool, initial_msgs = n_msgs, max_msgs = n_msgs, reset = nil)
-	if !ok {return false}
-	mpsc.init(&srv.q)
-	srv.count = n_clients
-	return true
+// create_echo_server is a factory proc that demonstrates Idiom 11: errdefer-dispose.
+// [itc: errdefer-dispose]
+create_echo_server :: proc(n_msgs: int, n_clients: int) -> (srv: ^_Echo_Server, ok: bool) {
+	raw := new(_Echo_Server) // [itc: heap-master]
+	if raw == nil { return }
+
+	srv_opt: Maybe(^_Echo_Server) = raw
+	defer if !ok { _echo_server_dispose(&srv_opt) }
+
+	init_ok, _ := pool_pkg.init(&raw.pool, initial_msgs = n_msgs, max_msgs = n_msgs, reset = nil)
+	if !init_ok { return }
+
+	mpsc.init(&raw.q)
+	raw.count = n_clients
+	
+	srv = raw
+	ok = true
+	return
 }
 
 @(private)
@@ -60,9 +76,8 @@ echo_server_example :: proc() -> bool {
 	N_CLIENTS :: 8
 	M_MSGS    :: 4 // fewer tokens than clients — forces backpressure
 
-	srv := new(_Echo_Server) // [itc: heap-master]
-	if !_echo_server_init(srv, M_MSGS, N_CLIENTS) {
-		free(srv)
+	srv, ok := create_echo_server(M_MSGS, N_CLIENTS)
+	if !ok {
 		return false
 	}
 	srv_opt: Maybe(^_Echo_Server) = srv
@@ -112,18 +127,19 @@ echo_server_example :: proc() -> bool {
 					return
 				}
 
-				msg.data = c.my_id
+				msg.base.data = c.my_id
 				msg.reply_to = &c.inbox
 
 				// Push to server queue and wake the server.
 				m: Maybe(^Echo_Msg) = msg // [itc: maybe-container]
 				if !mpsc.push(&c.server.q, &m) {
 					// push failed — return token to pool
-					ptr, accepted := pool_pkg.put(&c.server.pool, &m)
-					if !accepted && ptr != nil {
-						// _echo_msg_dispose not defined, using inline free for this example
-						// but in real system would follow dispose-contract
-						free(ptr, ptr.allocator)
+					defer { // [itc: defer-put]
+						ptr, accepted := pool_pkg.put(&c.server.pool, &m)
+						if !accepted && ptr != nil {
+							p_opt: Maybe(^Echo_Msg) = ptr
+							_echo_msg_dispose(&p_opt) // [itc: foreign-dispose]
+						}
 					}
 					return
 				}
@@ -134,13 +150,16 @@ echo_server_example :: proc() -> bool {
 				if err != .None || reply == nil {
 					return
 				}
-				c.ok = reply.data == c.my_id
+				c.ok = reply.base.data == c.my_id
 
 				// Return the token to the pool.
 				reply_opt: Maybe(^Echo_Msg) = reply // [itc: maybe-container]
-				ptr, accepted := pool_pkg.put(&c.server.pool, &reply_opt)
-				if !accepted && ptr != nil {
-					free(ptr, ptr.allocator) // [itc: foreign-dispose]
+				defer { // [itc: defer-put]
+					ptr, accepted := pool_pkg.put(&c.server.pool, &reply_opt)
+					if !accepted && ptr != nil {
+						p_opt: Maybe(^Echo_Msg) = ptr
+						_echo_msg_dispose(&p_opt) // [itc: foreign-dispose]
+					}
 				}
 			},
 		)

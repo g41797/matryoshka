@@ -11,9 +11,30 @@ import "core:thread"
 // Heap-allocated so the worker thread can hold its address safely.
 @(private)
 _Worker :: struct {
-	loop_mb:  ^loop_mbox.Mbox(Msg),
-	reply_mb: mbox.Mailbox(Msg),
+	loop_mb:  ^loop_mbox.Mbox(DisposableMsg),
+	reply_mb: mbox.Mailbox(DisposableMsg),
 	ok:       bool,
+}
+
+// create_worker is a factory proc that demonstrates Idiom 11: errdefer-dispose.
+// [itc: errdefer-dispose]
+create_worker :: proc(loop: ^nbio.Event_Loop, kind: nbio_mbox.Nbio_Wakeuper_Kind) -> (w: ^_Worker, ok: bool) {
+	raw := new(_Worker) // [itc: heap-master]
+	if raw == nil { return }
+
+	w_opt: Maybe(^_Worker) = raw
+	defer if !ok { _worker_dispose(&w_opt) }
+
+	// loop_mb receives requests from the worker.
+	init_err: nbio_mbox.Nbio_Mailbox_Error
+	raw.loop_mb, init_err = nbio_mbox.init_nbio_mbox(DisposableMsg, loop, kind)
+	if init_err != .None {
+		return
+	}
+
+	w = raw
+	ok = true
+	return
 }
 
 @(private)
@@ -25,9 +46,9 @@ _worker_dispose :: proc(w: ^Maybe(^_Worker)) { // [itc: dispose-contract]
 	if wp.loop_mb != nil {
 		remaining_loop, _ := loop_mbox.close(wp.loop_mb)
 		for node := list.pop_front(&remaining_loop); node != nil; node = list.pop_front(&remaining_loop) {
-			msg := (^Msg)(node)
-			msg_opt: Maybe(^Msg) = msg
-			_msg_dispose(&msg_opt) // [itc: dispose-optional]
+			msg := (^DisposableMsg)(node)
+			msg_opt: Maybe(^DisposableMsg) = msg
+			disposable_dispose(&msg_opt) // [itc: dispose-optional]
 		}
 		loop_mbox.destroy(wp.loop_mb)
 	}
@@ -35,9 +56,9 @@ _worker_dispose :: proc(w: ^Maybe(^_Worker)) { // [itc: dispose-contract]
 	// Dispose reply_mb
 	remaining, _ := mbox.close(&wp.reply_mb)
 	for node := list.pop_front(&remaining); node != nil; node = list.pop_front(&remaining) {
-		msg := (^Msg)(node)
-		msg_opt: Maybe(^Msg) = msg
-		_msg_dispose(&msg_opt) // [itc: dispose-optional]
+		msg := (^DisposableMsg)(node)
+		msg_opt: Maybe(^DisposableMsg) = msg
+		disposable_dispose(&msg_opt) // [itc: dispose-optional]
 	}
 
 	free(wp)
@@ -45,15 +66,6 @@ _worker_dispose :: proc(w: ^Maybe(^_Worker)) { // [itc: dispose-contract]
 }
 
 // negotiation_example shows request-reply between a worker thread and an nbio event loop.
-//
-// Flow:
-//   worker  →  loop_mbox  →  nbio loop
-//   nbio loop →  Mailbox  →  worker
-//
-// - Worker allocates a request on the heap, sends it to the loop.
-// - Loop receives the request. Reuses it as the reply (increments data, sends back).
-// - Worker receives the reply and frees it.
-// - One allocation per round-trip. Worker owns the memory start to finish.
 negotiation_example :: proc(kind: nbio_mbox.Nbio_Wakeuper_Kind = .UDP) -> bool {
 	err := nbio.acquire_thread_event_loop()
 	if err != nil {
@@ -63,33 +75,31 @@ negotiation_example :: proc(kind: nbio_mbox.Nbio_Wakeuper_Kind = .UDP) -> bool {
 
 	loop := nbio.current_thread_event_loop()
 
-	w := new(_Worker) // [itc: heap-master]
+	w, ok := create_worker(loop, kind)
+	if !ok {
+		return false
+	}
 	w_opt: Maybe(^_Worker) = w
 	defer _worker_dispose(&w_opt) // [itc: defer-dispose]
 
-	// loop_mb receives requests from the worker.
-	init_err: nbio_mbox.Nbio_Mailbox_Error
-	w.loop_mb, init_err = nbio_mbox.init_nbio_mbox(Msg, loop, kind)
-	if init_err != .None {
-		return false
-	}
-
 	// Worker: allocates request, sends to loop, waits for reply, frees reply.
 	t := thread.create_and_start_with_poly_data(w, proc(w: ^_Worker) { // [itc: thread-container]
-		req: Maybe(^Msg) = new(Msg) // [itc: maybe-container]
-		req.?.data = 10
+		req: Maybe(^DisposableMsg) = new(DisposableMsg) // [itc: maybe-container]
 		req.?.allocator = context.allocator
+		
+		// Idiom 4: defer-dispose handles cleanup on send failure
+		defer disposable_dispose(&req) // [itc: defer-dispose]
+		
 		if !loop_mbox.send(w.loop_mb, &req) {
-			_msg_dispose(&req)
 			return
 		}
 
 		// Worker allocated req; loop will send it back as reply.
 		reply, recv_err := mbox.wait_receive(&w.reply_mb)
-		w.ok = recv_err == .None && reply != nil && reply.data == 11
+		w.ok = recv_err == .None && reply != nil
 		if reply != nil {
-			reply_opt: Maybe(^Msg) = reply
-			_msg_dispose(&reply_opt) // [itc: dispose-optional]
+			reply_opt: Maybe(^DisposableMsg) = reply
+			disposable_dispose(&reply_opt) // [itc: dispose-optional]
 		}
 	})
 
@@ -103,12 +113,14 @@ negotiation_example :: proc(kind: nbio_mbox.Nbio_Wakeuper_Kind = .UDP) -> bool {
 		node := list.pop_front(&nb)
 		if node != nil {
 			// Reuse the received message as the reply.
-			// No extra allocation needed. Ownership stays with the worker.
-			msg_inner := (^Msg)(node)
-			msg: Maybe(^Msg) = msg_inner
-			msg.?.data += 1
+			msg_inner := (^DisposableMsg)(node)
+			msg: Maybe(^DisposableMsg) = msg_inner
+			
+			// Idiom 4: defer-dispose handles cleanup on send failure
+			defer disposable_dispose(&msg) // [itc: defer-dispose]
+			
 			if !mbox.send(&w.reply_mb, &msg) {
-				_msg_dispose(&msg)
+				// handled by defer
 			}
 			break
 		}

@@ -3,40 +3,8 @@ package examples
 import mbox "../mbox"
 import pool_pkg "../pool"
 import list "core:container/intrusive/list"
-import "core:mem"
 import "core:strings"
 import "core:thread"
-
-// DisposableMsg is a message with an internal heap-allocated field.
-// It requires a dispose proc for final cleanup.
-// It uses reset for reuse hygiene inside the pool.
-DisposableMsg :: struct {
-	node:      list.Node,
-	allocator: mem.Allocator,
-	name:      string, // heap-allocated — must be freed before the struct
-}
-
-// disposable_reset clears stale state without freeing internal resources.
-// Pool calls it automatically on get (before handing to caller) and on put (before free-list).
-// Does NOT free name. Pool reuses the slot.
-// [itc: reset-vs-dispose]
-disposable_reset :: proc(msg: ^DisposableMsg, _: pool_pkg.Pool_Event) {
-	msg.name = ""
-}
-
-// disposable_dispose frees all internal resources, then frees the struct.
-// Follows the ^Maybe(^T) contract: nil inner is a no-op. Sets inner to nil on return.
-// Caller uses this for permanent cleanup. Pool and mailbox never call it.
-// [itc: dispose-contract]
-disposable_dispose :: proc(msg: ^Maybe(^DisposableMsg)) {
-	if msg^ == nil {return}
-	ptr := (msg^).?
-	if ptr.name != "" {
-		delete(ptr.name, ptr.allocator)
-	}
-	free(ptr, ptr.allocator)
-	msg^ = nil
-}
 
 @(private)
 _Disposable_Master :: struct {
@@ -44,17 +12,36 @@ _Disposable_Master :: struct {
 	mb:   mbox.Mailbox(DisposableMsg),
 }
 
+// create_disposable_master is a factory proc that demonstrates Idiom 11: errdefer-dispose.
+// [itc: errdefer-dispose]
+create_disposable_master :: proc() -> (m: ^_Disposable_Master, ok: bool) {
+	raw := new(_Disposable_Master) // [itc: heap-master]
+	if raw == nil { return }
+
+	m_opt: Maybe(^_Disposable_Master) = raw
+	// named return 'ok' is checked at exit time.
+	// if post-init setup fails, dispose cleans up the partially-init master.
+	defer if !ok { _disposable_master_dispose(&m_opt) }
+
+	init_ok, _ := pool_pkg.init(&raw.pool, initial_msgs = 4, max_msgs = 0, reset = disposable_reset)
+	if !init_ok { return }
+
+	m = raw
+	ok = true
+	return
+}
+
 @(private)
 _disposable_master_dispose :: proc(m: ^Maybe(^_Disposable_Master)) { // [itc: dispose-contract]
 	mp, ok := m.?
 	if !ok || mp == nil { return }
 
-	// Drain mailbox and return to pool or dispose
+	// Drain mailbox and return to pool or dispose [itc: dispose-optional]
 	remaining, _ := mbox.close(&mp.mb)
 	for node := list.pop_front(&remaining); node != nil; node = list.pop_front(&remaining) {
 		msg := container_of(node, DisposableMsg, "node")
 		m_opt: Maybe(^DisposableMsg) = msg
-		
+
 		// Respect Idiom 6: check if accepted by pool
 		ptr, accepted := pool_pkg.put(&mp.pool, &m_opt)
 		if !accepted && ptr != nil {
@@ -75,14 +62,12 @@ _disposable_master_dispose :: proc(m: ^Maybe(^_Disposable_Master)) { // [itc: di
 //
 // Also shows the error path: if send fails, defer dispose handles cleanup.
 disposable_msg_example :: proc() -> bool {
-	m := new(_Disposable_Master) // [itc: heap-master]
-	m_opt: Maybe(^_Disposable_Master) = m
-	defer _disposable_master_dispose(&m_opt) // [itc: defer-dispose]
-
-	ok, _ := pool_pkg.init(&m.pool, initial_msgs = 4, max_msgs = 0, reset = disposable_reset)
+	m, ok := create_disposable_master()
 	if !ok {
 		return false
 	}
+	m_opt: Maybe(^_Disposable_Master) = m
+	defer _disposable_master_dispose(&m_opt) // [itc: defer-dispose]
 
 	result := false
 
@@ -92,15 +77,19 @@ disposable_msg_example :: proc() -> bool {
 		if err != .None || msg == nil {
 			return
 		}
+		
+		// Demonstrating Idiom 2: defer-put with Idiom 6: foreign-dispose
+		m_opt: Maybe(^DisposableMsg) = msg // [itc: maybe-container]
+		defer { // [itc: defer-put]
+			ptr, accepted := pool_pkg.put(&m.pool, &m_opt)
+			if !accepted && ptr != nil {
+				p_opt: Maybe(^DisposableMsg) = ptr
+				disposable_dispose(&p_opt) // [itc: foreign-dispose]
+			}
+		}
+
 		// process: name is set
 		_ = msg.name
-		// return to pool — reset runs automatically, clears name
-		m_opt: Maybe(^DisposableMsg) = msg
-		ptr, accepted := pool_pkg.put(&m.pool, &m_opt) // [itc: defer-put] (using it to check acceptance)
-		if !accepted && ptr != nil {
-			p_opt: Maybe(^DisposableMsg) = ptr
-			disposable_dispose(&p_opt) // [itc: foreign-dispose]
-		}
 	})
 
 	// Producer: get from pool, fill resources, send.

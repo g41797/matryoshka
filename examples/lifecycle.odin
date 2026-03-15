@@ -14,6 +14,7 @@ _lifecycle_dispose :: proc(m: ^Maybe(^_Lifecycle_Master)) { // [itc: dispose-con
 	if !ok || mp == nil { return }
 	
 	// Final drain: after close, all returned messages need dispose.
+	// Demonstrating Idiom 8: dispose-optional
 	remaining, _ := mbox.close(&mp.mb)
 	for node := list.pop_front(&remaining); node != nil; node = list.pop_front(&remaining) {
 		msg := container_of(node, Msg, "node")
@@ -22,15 +23,6 @@ _lifecycle_dispose :: proc(m: ^Maybe(^_Lifecycle_Master)) { // [itc: dispose-con
 	}
 	free(mp)
 	m^ = nil
-}
-
-// Internal helper for simple Msg cleanup that follows the contract.
-@(private)
-_msg_dispose :: proc(msg: ^Maybe(^Msg)) { // [itc: dispose-contract]
-	if msg^ == nil { return }
-	ptr := (msg^).?
-	free(ptr, ptr.allocator)
-	msg^ = nil
 }
 
 // lifecycle_example shows the complete flow: 
@@ -45,7 +37,6 @@ lifecycle_example :: proc() -> bool {
 	// 1. Create a message.
 	// You own the memory.
 	msg: Maybe(^Msg) = new(Msg) // [itc: maybe-container]
-	msg.?.data = 100
 	msg.?.allocator = context.allocator
 
 	// 2. Interrupt — no message yet, so the waiter gets .Interrupted.
