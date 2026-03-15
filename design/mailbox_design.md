@@ -1124,7 +1124,7 @@ DisposableMsg :: struct {
 
 // Called by pool.get (before handing to caller) and pool.put (before free-list).
 // Clears stale fields. Does NOT free internal resources.
-disposable_reset :: proc(msg: ^DisposableMsg) {
+disposable_reset :: proc(msg: ^DisposableMsg, _: pool.Pool_Event) {
     msg.name = ""   // clear stale reference — pool may reuse this slot
 }
 
@@ -1210,7 +1210,7 @@ A `DisposableMsg` may need both: `reset` to refresh on reuse, `dispose` when per
 
 ```odin
 // reset: called on every pool cycle — zero stale state
-disposable_reset :: proc(msg: ^DisposableMsg) {
+disposable_reset :: proc(msg: ^DisposableMsg, _: pool.Pool_Event) {
     msg.name = ""   // clear — do not delete, pool will reuse slot
 }
 

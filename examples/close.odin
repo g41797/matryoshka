@@ -42,8 +42,15 @@ close_example :: proc() -> bool {
 	b.?.data = 2
 
 	// Send them. Mailbox now owns the references.
-	mbox.send(&mb, &a)
-	mbox.send(&mb, &b)
+	if !mbox.send(&mb, &a) {
+		if mp, ok := a.?; ok {free(mp)}
+		if mp, ok := b.?; ok {free(mp)}
+		return false
+	}
+	if !mbox.send(&mb, &b) {
+		if mp, ok := b.?; ok {free(mp)}
+		return false
+	}
 
 	// Close and get all undelivered messages back.
 	remaining, _ := mbox.close(&mb)

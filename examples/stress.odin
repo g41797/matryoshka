@@ -39,7 +39,7 @@ stress_example :: proc() -> bool {
 				}
 				if err == .None {
 					msg_opt: Maybe(^Msg) = msg
-					pool_pkg.put(p, &msg_opt)
+					_, _ = pool_pkg.put(p, &msg_opt)
 					count += 1
 				}
 			}
@@ -57,7 +57,9 @@ stress_example :: proc() -> bool {
 					msg, _ := pool_pkg.get(p)
 					if msg != nil {
 						msg_opt: Maybe(^Msg) = msg
-						mbox.send(mb, &msg_opt)
+						if !mbox.send(mb, &msg_opt) {
+							_, _ = pool_pkg.put(p, &msg_opt)
+						}
 					}
 				}
 			},
@@ -71,7 +73,7 @@ stress_example :: proc() -> bool {
 	for node := list.pop_front(&remaining); node != nil; node = list.pop_front(&remaining) {
 		msg := container_of(node, Msg, "node")
 		msg_opt: Maybe(^Msg) = msg
-		pool_pkg.put(&shared_pool, &msg_opt)
+		_, _ = pool_pkg.put(&shared_pool, &msg_opt)
 	}
 
 	pool_pkg.destroy(&shared_pool)

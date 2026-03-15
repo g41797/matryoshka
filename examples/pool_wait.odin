@@ -35,7 +35,7 @@ pool_wait_example :: proc() -> bool {
 				}
 				if err == .None {
 					msg_opt: Maybe(^Msg) = msg
-					pool_pkg.put(p, &msg_opt)
+					_, _ = pool_pkg.put(p, &msg_opt)
 					count += 1
 				}
 			}
@@ -55,7 +55,9 @@ pool_wait_example :: proc() -> bool {
 						break
 					}
 					msg_opt: Maybe(^Msg) = msg
-					mbox.send(mb, &msg_opt)
+					if !mbox.send(mb, &msg_opt) {
+						_, _ = pool_pkg.put(p, &msg_opt)
+					}
 				}
 			},
 		)
@@ -67,7 +69,7 @@ pool_wait_example :: proc() -> bool {
 	for node := list.pop_front(&remaining); node != nil; node = list.pop_front(&remaining) {
 		msg := container_of(node, Msg, "node")
 		msg_opt: Maybe(^Msg) = msg
-		pool_pkg.put(&p, &msg_opt)
+		_, _ = pool_pkg.put(&p, &msg_opt)
 	}
 	pool_pkg.destroy(&p)
 	return true

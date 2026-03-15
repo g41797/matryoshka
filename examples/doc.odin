@@ -11,6 +11,7 @@ Patterns shown:
 - stress: many producers, one consumer, pool recycling.
 - endless_game: circular passing of a heap-allocated message.
 - master: pool + mailbox owned by one struct, coordinated shutdown.
+- disposable_msg: message with internal heap resources — pool.get, fill, send, receive, pool.put with reset. dispose proc for permanent cleanup.
 
 Message allocation rules:
 - Never use stack-allocated messages across threads.

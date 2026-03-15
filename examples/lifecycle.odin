@@ -26,7 +26,11 @@ lifecycle_example :: proc() -> bool {
 
 	// 3. Send the message.
 	// The mailbox holds the pointer now.
-	mbox.send(&mb, &m)
+	ok := mbox.send(&mb, &m)
+	if !ok {
+		if mp, ok2 := m.?; ok2 {free(mp)}
+		return false
+	}
 
 	// 4. Shutdown.
 	// close() returns all undelivered messages.

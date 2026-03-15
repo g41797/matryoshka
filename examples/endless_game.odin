@@ -59,11 +59,14 @@ endless_game_example :: proc() -> bool {
 					dice.rolls += 1
 				}
 
-				done := dice.rolls >= p.total
+				game_done := dice.rolls >= p.total
 				dice_opt: Maybe(^Dice) = dice
-				mbox.send(p.next_mb, &dice_opt)
-				if done {
+				ok := mbox.send(p.next_mb, &dice_opt)
+				if game_done {
 					sync.sema_post(p.done)
+					return
+				}
+				if !ok {
 					return
 				}
 			}
@@ -74,7 +77,10 @@ endless_game_example :: proc() -> bool {
 	// Keep the_dice_ptr for post-game inspection — the_dice is nil after send.
 	the_dice_ptr := new(Dice)
 	the_dice: Maybe(^Dice) = the_dice_ptr
-	mbox.send(&mboxes[0], &the_dice)
+	if !mbox.send(&mboxes[0], &the_dice) {
+		free(the_dice_ptr)
+		return false
+	}
 
 	sync.sema_wait(&done)
 
