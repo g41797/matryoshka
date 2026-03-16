@@ -232,7 +232,7 @@ for node := list.pop_front(&remaining); node != nil; node = list.pop_front(&rema
 
 ## Pool
 
-To reuse messages, use the `pool` package.
+To reuse items, use the `pool` package.
 
 ```odin
 import pool_pkg "path/to/odin-itc/pool"
@@ -240,40 +240,42 @@ import "core:mem"
 import "core:time"
 
 // Your struct — both fields required when using pool.
-My_Msg :: struct {
+My_Itm :: struct {
     node:      list.Node,     // required by mbox and pool
     allocator: mem.Allocator, // required by pool
     data:      int,
 }
 
-// Setup — plain message type:
-p: pool_pkg.Pool(My_Msg)
-if ok, _ := pool_pkg.init(&p, initial_msgs = 64, max_msgs = 256, procs = nil); !ok {
+// Setup — plain item type:
+p: pool_pkg.Pool(My_Itm)
+if ok, _ := pool_pkg.init(&p, initial_msgs = 64, max_msgs = 256, hooks = pool_pkg.T_Hooks(My_Itm){}); !ok {
     return
 }
 
-// Setup — message with internal heap resources (T_Procs):
-// pool_pkg.init(&p, initial_msgs = 4, max_msgs = 0,
-//     procs = &pool_pkg.T_Procs(My_Msg){
-//         factory = my_factory, // nil = new(T, allocator)
-//         reset   = my_reset,   // nil = no-op
-//         dispose = my_dispose, // nil = free(msg, allocator)
-//     })
+// Setup — item with internal heap resources (T_Hooks):
+// Define once as a :: constant next to the type:
+// MY_ITM_HOOKS :: pool_pkg.T_Hooks(My_Itm){
+//     factory = my_factory, // nil = new(T, allocator)
+//     reset   = my_reset,   // nil = no-op
+//     dispose = my_dispose, // nil = free(itm, allocator)
+// }
+// Then pass it to init:
+// pool_pkg.init(&p, initial_msgs = 4, max_msgs = 0, hooks = MY_ITM_HOOKS)
 
 // Sender: get from pool, fill, send.
 // .Always (default): allocates new if pool empty.
-msg, _ := pool_pkg.get(&p)
-msg.data = 42
-msg_opt: Maybe(^My_Msg) = msg
-mbox.send(&mb, &msg_opt) // msg_opt = nil after this
+itm, _ := pool_pkg.get(&p)
+itm.data = 42
+itm_opt: Maybe(^My_Itm) = itm
+mbox.send(&mb, &itm_opt) // itm_opt = nil after this
 
-// .Pool_Only + timeout: wait up to 100 ms for a recycled message.
-msg2, status := pool_pkg.get(&p, .Pool_Only, 100 * time.Millisecond)
+// .Pool_Only + timeout: wait up to 100 ms for a recycled item.
+itm2, status := pool_pkg.get(&p, .Pool_Only, 100 * time.Millisecond)
 
 // Receiver: receive, use, return to pool.
 got, err := mbox.wait_receive(&mb)
 if err == .None {
-    got_opt: Maybe(^My_Msg) = got
+    got_opt: Maybe(^My_Itm) = got
     pool_pkg.put(&p, &got_opt) // got_opt = nil after this
 }
 

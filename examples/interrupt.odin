@@ -6,7 +6,7 @@ import "core:time"
 
 @(private)
 _Interrupt_Master :: struct {
-	mb: mbox.Mailbox(Msg),
+	mb: mbox.Mailbox(Itm),
 }
 
 // create_interrupt_master is a factory proc that demonstrates Idiom 11: errdefer-dispose.
@@ -32,7 +32,7 @@ _interrupt_dispose :: proc(m: ^Maybe(^_Interrupt_Master)) { // [itc: dispose-con
 	m^ = nil
 }
 
-// interrupt_example shows how to wake up a waiting thread without sending a message.
+// interrupt_example shows how to wake up a waiting thread without sending an item.
 interrupt_example :: proc() -> bool {
 	m, ok := create_interrupt_master()
 	if !ok {
@@ -44,7 +44,7 @@ interrupt_example :: proc() -> bool {
 	err_result: mbox.Mailbox_Error
 
 	// Start a thread that will wait forever.
-	t := thread.create_and_start_with_poly_data2(&m.mb, &err_result, proc(mb: ^mbox.Mailbox(Msg), res: ^mbox.Mailbox_Error) {
+	t := thread.create_and_start_with_poly_data2(&m.mb, &err_result, proc(mb: ^mbox.Mailbox(Itm), res: ^mbox.Mailbox_Error) {
 		// [itc: thread-container] (mb is part of heap-master)
 		_, err := mbox.wait_receive(mb)
 		res^ = err

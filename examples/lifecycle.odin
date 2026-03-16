@@ -5,27 +5,27 @@ import list "core:container/intrusive/list"
 
 @(private)
 _Lifecycle_Master :: struct {
-	mb: mbox.Mailbox(Msg),
+	mb: mbox.Mailbox(Itm),
 }
 
 @(private)
 _lifecycle_dispose :: proc(m: ^Maybe(^_Lifecycle_Master)) { // [itc: dispose-contract]
 	mp, ok := m.?
 	if !ok || mp == nil { return }
-	
-	// Final drain: after close, all returned messages need dispose.
+
+	// Final drain: after close, all returned items need dispose.
 	// Demonstrating Idiom 8: dispose-optional
 	remaining, _ := mbox.close(&mp.mb)
 	for node := list.pop_front(&remaining); node != nil; node = list.pop_front(&remaining) {
-		msg := container_of(node, Msg, "node")
-		msg_opt: Maybe(^Msg) = msg
-		_msg_dispose(&msg_opt) // [itc: dispose-optional]
+		itm := container_of(node, Itm, "node")
+		itm_opt: Maybe(^Itm) = itm
+		_itm_dispose(&itm_opt) // [itc: dispose-optional]
 	}
 	free(mp)
 	m^ = nil
 }
 
-// lifecycle_example shows the complete flow: 
+// lifecycle_example shows the complete flow:
 // 1. Allocation via context.allocator (new).
 // 2. Handling an interrupt.
 // 3. Closing and cleaning up (free).
@@ -34,25 +34,25 @@ lifecycle_example :: proc() -> bool {
 	m_opt: Maybe(^_Lifecycle_Master) = m
 	defer _lifecycle_dispose(&m_opt) // [itc: defer-dispose]
 
-	// 1. Create a message.
+	// 1. Create an item.
 	// You own the memory.
-	msg: Maybe(^Msg) = new(Msg) // [itc: maybe-container]
-	msg.?.allocator = context.allocator
+	itm: Maybe(^Itm) = new(Itm) // [itc: maybe-container]
+	itm.?.allocator = context.allocator
 
-	// 2. Interrupt — no message yet, so the waiter gets .Interrupted.
+	// 2. Interrupt — no item yet, so the waiter gets .Interrupted.
 	// Wakes the next waiter with .Interrupted.
 	mbox.interrupt(&m.mb)
 	_, err := mbox.wait_receive(&m.mb)
 	if err != .Interrupted {
-		_msg_dispose(&msg)
+		_itm_dispose(&itm)
 		return false
 	}
 
-	// 3. Send the message.
+	// 3. Send the item.
 	// The mailbox holds the pointer now.
-	ok := mbox.send(&m.mb, &msg)
+	ok := mbox.send(&m.mb, &itm)
 	if !ok {
-		_msg_dispose(&msg)
+		_itm_dispose(&itm)
 		return false
 	}
 

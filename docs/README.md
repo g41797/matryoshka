@@ -87,7 +87,7 @@ Check the [examples/](https://github.com/g41797/odin-itc/tree/main/examples) dir
 - **Interrupt**: How to wake a waiting thread without sending a message.
 - **Close**: Stop the game and get back all unprocessed messages.
 - **Master**: Pool + mailbox owned by one struct. Coordinated shutdown.
-- **Disposable Msg**: Messages with internal heap resources. Pool manages lifecycle via `T_Procs`.
+- **Disposable Itm**: Items with internal heap resources. Pool manages lifecycle via `T_Hooks`.
 
 > **Note**: Always use heap-allocated messages across threads.
 > Never send stack-allocated messages. Use `new`/`free` or the `pool` package.

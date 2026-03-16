@@ -8,8 +8,8 @@ import "core:thread"
 
 @(private)
 _Disposable_Master :: struct {
-	pool: pool_pkg.Pool(DisposableMsg),
-	mb:   mbox.Mailbox(DisposableMsg),
+	pool: pool_pkg.Pool(DisposableItm),
+	mb:   mbox.Mailbox(DisposableItm),
 }
 
 // create_disposable_master is a factory proc that demonstrates Idiom 11: errdefer-dispose.
@@ -24,11 +24,7 @@ create_disposable_master :: proc() -> (m: ^_Disposable_Master, ok: bool) {
 	defer if !ok { _disposable_master_dispose(&m_opt) }
 
 	init_ok, _ := pool_pkg.init(&raw.pool, initial_msgs = 4, max_msgs = 0,
-		procs = &pool_pkg.T_Procs(DisposableMsg){
-			factory = disposable_factory,
-			reset   = disposable_reset,
-			dispose = disposable_dispose,
-		})
+		hooks = DISPOSABLE_ITM_HOOKS)
 	if !init_ok { return }
 
 	m = raw
@@ -44,14 +40,14 @@ _disposable_master_dispose :: proc(m: ^Maybe(^_Disposable_Master)) { // [itc: di
 	// Drain mailbox and return to pool or dispose [itc: dispose-optional]
 	remaining, _ := mbox.close(&mp.mb)
 	for node := list.pop_front(&remaining); node != nil; node = list.pop_front(&remaining) {
-		msg := container_of(node, DisposableMsg, "node")
-		m_opt: Maybe(^DisposableMsg) = msg
+		itm := container_of(node, DisposableItm, "node")
+		itm_opt: Maybe(^DisposableItm) = itm
 
 		// Respect Idiom 6: check if accepted by pool
-		ptr, accepted := pool_pkg.put(&mp.pool, &m_opt)
+		ptr, accepted := pool_pkg.put(&mp.pool, &itm_opt)
 		if !accepted && ptr != nil {
 			// Foreign or pool closed: manual dispose [itc: foreign-dispose]
-			p_opt: Maybe(^DisposableMsg) = ptr
+			p_opt: Maybe(^DisposableItm) = ptr
 			disposable_dispose(&p_opt)
 		}
 	}
@@ -61,12 +57,13 @@ _disposable_master_dispose :: proc(m: ^Maybe(^_Disposable_Master)) { // [itc: di
 	m^ = nil
 }
 
-// disposable_msg_example shows a full lifecycle with internal resources:
+// disposable_itm_example shows a full lifecycle with internal resources:
 //   producer: pool.get → fill name → send
 //   consumer: receive → process → pool.put (reset clears name automatically)
 //
 // Also shows the error path: if send fails, defer dispose handles cleanup.
-disposable_msg_example :: proc() -> bool {
+// [itc: disposable-itm]
+disposable_itm_example :: proc() -> bool {
 	m, ok := create_disposable_master()
 	if !ok {
 		return false
@@ -76,43 +73,43 @@ disposable_msg_example :: proc() -> bool {
 
 	result := false
 
-	// Consumer thread: receives one message, checks the name, puts back to pool.
+	// Consumer thread: receives one item, checks the name, puts back to pool.
 	t := thread.create_and_start_with_poly_data(m, proc(m: ^_Disposable_Master) { // [itc: thread-container]
-		msg, err := mbox.wait_receive(&m.mb)
-		if err != .None || msg == nil {
+		itm, err := mbox.wait_receive(&m.mb)
+		if err != .None || itm == nil {
 			return
 		}
-		
+
 		// Demonstrating Idiom 2: defer-put with Idiom 6: foreign-dispose
-		m_opt: Maybe(^DisposableMsg) = msg // [itc: maybe-container]
+		itm_opt: Maybe(^DisposableItm) = itm // [itc: maybe-container]
 		defer { // [itc: defer-put]
-			ptr, accepted := pool_pkg.put(&m.pool, &m_opt)
+			ptr, accepted := pool_pkg.put(&m.pool, &itm_opt)
 			if !accepted && ptr != nil {
-				p_opt: Maybe(^DisposableMsg) = ptr
+				p_opt: Maybe(^DisposableItm) = ptr
 				disposable_dispose(&p_opt) // [itc: foreign-dispose]
 			}
 		}
 
 		// process: name is set
-		_ = msg.name
+		_ = itm.name
 	})
 
 	// Producer: get from pool, fill resources, send.
-	msg, status := pool_pkg.get(&m.pool)
+	itm, status := pool_pkg.get(&m.pool)
 	if status != .Ok {
 		thread.join(t)
 		thread.destroy(t)
 		return false
 	}
 
-	msg_opt: Maybe(^DisposableMsg) = msg // [itc: maybe-container]
-	defer disposable_dispose(&msg_opt) // no-op if send succeeded // [itc: defer-dispose]
+	itm_opt: Maybe(^DisposableItm) = itm // [itc: maybe-container]
+	defer disposable_dispose(&itm_opt) // no-op if send succeeded // [itc: defer-dispose]
 
-	msg_opt.?.name = strings.clone("hello", msg_opt.?.allocator)
-	if mbox.send(&m.mb, &msg_opt) {
+	itm_opt.?.name = strings.clone("hello", itm_opt.?.allocator)
+	if mbox.send(&m.mb, &itm_opt) {
 		result = true
 	}
-	// if send failed: m is non-nil, defer dispose handles cleanup
+	// if send failed: itm is non-nil, defer dispose handles cleanup
 
 	thread.join(t)
 	thread.destroy(t)

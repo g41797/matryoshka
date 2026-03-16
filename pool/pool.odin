@@ -41,8 +41,8 @@ Pool_Status :: enum {
 
 // Pool_Event tells the reset proc why it was called.
 Pool_Event :: enum {
-	Get, // message is about to be returned to caller
-	Put, // message is about to return to free-list (or be freed)
+	Get, // item is about to be returned to caller
+	Put, // item is about to return to free-list (or be freed)
 }
 
 // Allocation_Strategy controls get() behavior when the pool is empty.
@@ -51,20 +51,20 @@ Allocation_Strategy :: enum {
 	Always, // allocate new if pool is empty (default)
 }
 
-// T_Procs holds optional hooks for message lifecycle.
-// All three fields are optional. nil = default behavior.
+// T_Hooks holds optional hooks for item lifecycle.
 // factory: called for every fresh allocation. nil = new(T, allocator).
 // reset:   called on get (recycled) and put (before free-list or freed). nil = no-op.
-// dispose: called when permanently destroying a message. nil = free(msg, allocator).
-T_Procs :: struct($T: typeid) {
+// dispose: called when permanently destroying an item. nil = free(itm, allocator).
+// Zero value {} = all defaults. Pass by value to init.
+T_Hooks :: struct($T: typeid) {
 	factory: proc(allocator: mem.Allocator) -> (^T, bool),
-	reset:   proc(msg: ^T, e: Pool_Event),
-	dispose: proc(msg: ^Maybe(^T)),
+	reset:   proc(itm: ^T, e: Pool_Event),
+	dispose: proc(itm: ^Maybe(^T)),
 }
 
-// Pool is a thread-safe free-list for reusable message objects.
+// Pool is a thread-safe free-list for reusable item objects.
 //
-// Uses the same "node" field as mbox. A message is never in both at once.
+// Uses the same "node" field as mbox. An item is never in both at once.
 // T must have a field named "node" of type list.Node and "allocator" of type mem.Allocator.
 Pool :: struct($T: typeid) {
 	allocator:          mem.Allocator,
@@ -74,23 +74,24 @@ Pool :: struct($T: typeid) {
 	curr_msgs:          int,
 	max_msgs:           int, // 0 = unlimited
 	state:              Pool_State, // lifecycle state
-	procs:              T_Procs(T), // optional hooks; zero value = all nil = defaults
+	hooks:              T_Hooks(T), // optional hooks; zero value = all nil = defaults
 	waker:              wakeup.WakeUper, // optional — notify non-blocking callers; pass {} for none
 	empty_was_returned: bool, // true when get(.Pool_Only,0) found empty; cleared on next put
 }
 
-// init prepares the pool and pre-allocates initial_msgs messages.
+// init prepares the pool and pre-allocates initial_msgs items.
 // max_msgs sets a cap on the free-list size. 0 = unlimited.
-// procs: optional table of factory/reset/dispose hooks. nil = all defaults.
+// hooks: zero value {} = all defaults (new/no-op/free). Pass by value. See T_Hooks.
+// allocator: the allocator used for all new/free calls. Default = context.allocator.
 // Returns (true, .Ok) on success; (false, .Out_Of_Memory) if any pre-allocation fails.
-// On failure all already-allocated messages are freed and state is set to .Closed.
-// Note: when factory is nil, pre-allocated messages have msg.allocator unset; get sets it on retrieval.
-// Note: when factory is not nil, it must set msg.allocator itself.
+// On failure all already-allocated items are freed and state is set to .Closed.
+// Note: when factory is nil, pre-allocated items have itm.allocator unset; get sets it on retrieval.
+// Note: when factory is not nil, it must set itm.allocator itself.
 init :: proc(
 	p: ^Pool($T),
 	initial_msgs := 0,
 	max_msgs := 0,
-	procs: ^T_Procs(T), // nil = use all defaults (new/skip/free)
+	hooks: T_Hooks(T), // zero value {} = all default behaviors
 	waker: wakeup.WakeUper = {},
 	allocator := context.allocator,
 ) -> (
@@ -105,35 +106,31 @@ init :: proc(
 	if p.state == .Active {
 		return false, .Closed
 	}
+	p.hooks = hooks
 	p.allocator = allocator
 	p.max_msgs = max_msgs
-	if procs != nil {
-		p.procs = procs^
-	} else {
-		p.procs = {}
-	}
 	p.waker = waker
 
 	for _ in 0 ..< initial_msgs {
-		msg: ^T
-		if p.procs.factory != nil {
+		itm: ^T
+		if p.hooks.factory != nil {
 			ok: bool
-			msg, ok = p.procs.factory(allocator)
+			itm, ok = p.hooks.factory(allocator)
 			if !ok {
-				// factory cleans up after itself on failure; free already-allocated messages.
+				// factory cleans up after itself on failure; free already-allocated items.
 				_destroy_list(p, allocator)
 				p.state = .Closed
 				return false, .Out_Of_Memory
 			}
 		} else {
-			msg = new(T, allocator)
-			if msg == nil {
+			itm = new(T, allocator)
+			if itm == nil {
 				_destroy_list(p, allocator)
 				p.state = .Closed
 				return false, .Out_Of_Memory
 			}
 		}
-		list.push_back(&p.list, &msg.node)
+		list.push_back(&p.list, &itm.node)
 		p.curr_msgs += 1
 	}
 
@@ -141,7 +138,7 @@ init :: proc(
 	return true, .Ok
 }
 
-// _destroy_list frees all messages in p.list using dispose or free.
+// _destroy_list frees all items in p.list using dispose or free.
 @(private)
 _destroy_list :: proc(p: ^Pool($T), allocator: mem.Allocator) {
 	for {
@@ -151,22 +148,22 @@ _destroy_list :: proc(p: ^Pool($T), allocator: mem.Allocator) {
 		}
 		m := container_of(raw, T, "node")
 		p.curr_msgs -= 1
-		if p.procs.dispose != nil {
+		if p.hooks.dispose != nil {
 			m_opt: Maybe(^T) = m
-			p.procs.dispose(&m_opt)
+			p.hooks.dispose(&m_opt)
 		} else {
 			free(m, allocator)
 		}
 	}
 }
 
-// get returns a message from the free-list.
+// get returns an item from the free-list.
 // .Always (default): allocates a new one if the pool is empty. timeout is ignored.
 // .Pool_Only + timeout==0: returns (nil, .Pool_Empty) immediately if empty (default behavior).
 // .Pool_Only + timeout<0: waits forever until put or destroy.
 // .Pool_Only + timeout>0: waits up to that duration; returns (nil, .Pool_Empty) on expiry.
 // Returns (nil, .Closed) if the pool state is not Active (including destroy while waiting).
-// Sets msg.allocator on every returned message (when factory is nil). Calls reset(.Get) only for recycled messages.
+// Sets itm.allocator on every returned item (when factory is nil). Calls reset(.Get) only for recycled items.
 get :: proc(
 	p: ^Pool($T),
 	strategy := Allocation_Strategy.Always,
@@ -194,7 +191,7 @@ get :: proc(
 			sync.mutex_unlock(&p.mutex)
 			return nil, .Pool_Empty
 		}
-		// Block until a message is available, the pool is closed, or timeout expires.
+		// Block until an item is available, the pool is closed, or timeout expires.
 		for p.list.head == nil {
 			if p.state != .Active {
 				sync.mutex_unlock(&p.mutex)
@@ -223,44 +220,44 @@ get :: proc(
 		p.curr_msgs -= 1
 		alloc := p.allocator
 		sync.mutex_unlock(&p.mutex)
-		msg := container_of(raw, T, "node")
-		msg.node = {}
-		msg.allocator = alloc
-		if p.procs.reset != nil {
-			// reset clears the message and exposes stale-pointer bugs early.
-			p.procs.reset(msg, .Get)
+		itm := container_of(raw, T, "node")
+		itm.node = {}
+		itm.allocator = alloc
+		if p.hooks.reset != nil {
+			// reset clears the item and exposes stale-pointer bugs early.
+			p.hooks.reset(itm, .Get)
 		}
-		return msg, .Ok
+		return itm, .Ok
 	}
 
 	// strategy == .Always and pool was empty: fresh allocation — do not call reset.
 	alloc := p.allocator
 	sync.mutex_unlock(&p.mutex)
 
-	if p.procs.factory != nil {
-		msg, ok := p.procs.factory(alloc)
+	if p.hooks.factory != nil {
+		itm, ok := p.hooks.factory(alloc)
 		if !ok {
 			return nil, .Out_Of_Memory
 		}
-		return msg, .Ok
+		return itm, .Ok
 	}
 
-	msg := new(T, alloc)
-	if msg == nil {
+	itm := new(T, alloc)
+	if itm == nil {
 		return nil, .Out_Of_Memory
 	}
-	msg.allocator = alloc
-	return msg, .Ok
+	itm.allocator = alloc
+	return itm, .Ok
 }
 
-// put returns msg to the free-list.
-// nil inner (msg^ == nil) → (nil, true) no-op.
-// own message: msg^ = nil, returned to free-list or freed → (nil, true).
-// foreign message (allocator differs): msg^ = nil, returns (ptr, false) — caller must free or dispose ptr.
+// put returns itm to the free-list.
+// nil inner (itm^ == nil) → (nil, true) no-op.
+// own item: itm^ = nil, returned to free-list or freed → (nil, true).
+// foreign item (allocator differs): itm^ = nil, returns (ptr, false) — caller must free or dispose ptr.
 // Calls reset(.Put) before recycling, outside the mutex.
 put :: proc(
 	p: ^Pool($T),
-	msg: ^Maybe(^T),
+	itm: ^Maybe(^T),
 ) -> (
 	^T,
 	bool,
@@ -270,30 +267,30 @@ put :: proc(
 	intrinsics.type_has_field(T, "allocator"),
 	intrinsics.type_field_type(T, "allocator") ==
 	mem.Allocator {
-	if msg^ == nil {
+	if itm^ == nil {
 		return nil, true // nil inner — no-op
 	}
-	ptr := (msg^).?
+	ptr := (itm^).?
 
-	// Foreign message: wrong allocator — nil caller's var, return ptr.
+	// Foreign item: wrong allocator — nil caller's var, return ptr.
 	if ptr.allocator != p.allocator {
-		msg^ = nil
+		itm^ = nil
 		return ptr, false
 	}
 
-	if p.procs.reset != nil {
-		p.procs.reset(ptr, .Put)
+	if p.hooks.reset != nil {
+		p.hooks.reset(ptr, .Put)
 	}
 
 	sync.mutex_lock(&p.mutex)
 
 	if p.state != .Active || (p.max_msgs > 0 && p.curr_msgs >= p.max_msgs) {
 		sync.mutex_unlock(&p.mutex)
-		if p.procs.dispose != nil {
-			p.procs.dispose(msg)
+		if p.hooks.dispose != nil {
+			p.hooks.dispose(itm)
 		} else {
 			free(ptr, ptr.allocator)
-			msg^ = nil
+			itm^ = nil
 		}
 		return nil, true
 	}
@@ -311,30 +308,30 @@ put :: proc(
 	if pool_was_empty && was_flag && waker.wake != nil {
 		waker.wake(waker.ctx)
 	}
-	msg^ = nil
+	itm^ = nil
 	return nil, true
 }
 
-// destroy_msg frees msg^ using the pool's allocator (or dispose hook) and sets msg^ = nil.
-// No-op if msg^ is nil. Use when send fails and the unsent message must be freed.
-destroy_msg :: proc(p: ^Pool($T), msg: ^Maybe(^T)) where intrinsics.type_has_field(T, "node"),
+// destroy_itm frees itm^ using the pool's allocator (or dispose hook) and sets itm^ = nil.
+// No-op if itm^ is nil. Use when send fails and the unsent item must be freed.
+destroy_itm :: proc(p: ^Pool($T), itm: ^Maybe(^T)) where intrinsics.type_has_field(T, "node"),
 	intrinsics.type_field_type(T, "node") == list.Node,
 	intrinsics.type_has_field(T, "allocator"),
 	intrinsics.type_field_type(T, "allocator") == mem.Allocator {
-	if msg^ == nil {
+	if itm^ == nil {
 		return
 	}
-	if p.procs.dispose != nil {
-		p.procs.dispose(msg)
+	if p.hooks.dispose != nil {
+		p.hooks.dispose(itm)
 	} else {
-		ptr := (msg^).?
+		ptr := (itm^).?
 		free(ptr, p.allocator)
-		msg^ = nil
+		itm^ = nil
 	}
 }
 
-// destroy frees all messages in the free-list and marks the pool Closed.
-// After destroy: get returns (nil, .Closed), put frees own messages.
+// destroy frees all items in the free-list and marks the pool Closed.
+// After destroy: get returns (nil, .Closed), put frees own items.
 // Safe to call more than once.
 // Call after all threads have stopped using the pool.
 destroy :: proc(p: ^Pool($T)) where intrinsics.type_has_field(T, "node"),
@@ -349,7 +346,7 @@ destroy :: proc(p: ^Pool($T)) where intrinsics.type_has_field(T, "node"),
 	}
 	p.state = .Closed
 
-	// Use p.allocator because pre-allocated messages (factory == nil) have msg.allocator unset.
+	// Use p.allocator because pre-allocated items (factory == nil) have itm.allocator unset.
 	alloc := p.allocator
 	_destroy_list(p, alloc)
 	sync.cond_broadcast(&p.cond) // wake all waiting get(.Pool_Only) calls
@@ -361,7 +358,7 @@ destroy :: proc(p: ^Pool($T)) where intrinsics.type_has_field(T, "node"),
 	}
 }
 
-// length returns the number of messages currently in the free-list.
+// length returns the number of items currently in the free-list.
 // Thread-safe. Reads curr_msgs under mutex.
 length :: proc(p: ^Pool($T)) -> int where intrinsics.type_has_field(T, "node"),
 	intrinsics.type_field_type(T, "node") == list.Node,

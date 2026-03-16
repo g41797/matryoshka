@@ -6,20 +6,20 @@ import pool_pkg "../pool"
 import "core:sync"
 import "core:thread"
 
-// Echo_Msg uses the standard DisposableMsg with an added reply address.
+// Echo_Msg uses the standard DisposableItm with an added reply address.
 Echo_Msg :: struct {
-	using base: DisposableMsg,
+	using base: DisposableItm,
 	reply_to:   ^mbox.Mailbox(Echo_Msg),
 }
 
-// _echo_msg_dispose handles the embedded DisposableMsg cleanup.
+// _echo_msg_dispose handles the embedded DisposableItm cleanup.
 // [itc: dispose-contract]
-_echo_msg_dispose :: proc(msg: ^Maybe(^Echo_Msg)) {
-	if msg^ == nil { return }
-	ptr := (msg^).?
-	base_opt: Maybe(^DisposableMsg) = &ptr.base
+_echo_msg_dispose :: proc(itm: ^Maybe(^Echo_Msg)) {
+	if itm^ == nil { return }
+	ptr := (itm^).?
+	base_opt: Maybe(^DisposableItm) = &ptr.base
 	disposable_dispose(&base_opt)
-	msg^ = nil
+	itm^ = nil
 }
 
 // _Echo_Server owns pool, queue, and sema for the server thread.
@@ -41,12 +41,12 @@ create_echo_server :: proc(n_msgs: int, n_clients: int) -> (srv: ^_Echo_Server, 
 	srv_opt: Maybe(^_Echo_Server) = raw
 	defer if !ok { _echo_server_dispose(&srv_opt) }
 
-	init_ok, _ := pool_pkg.init(&raw.pool, initial_msgs = n_msgs, max_msgs = n_msgs, procs = nil)
+	init_ok, _ := pool_pkg.init(&raw.pool, initial_msgs = n_msgs, max_msgs = n_msgs, hooks = pool_pkg.T_Hooks(Echo_Msg){})
 	if !init_ok { return }
 
 	mpsc.init(&raw.q)
 	raw.count = n_clients
-	
+
 	srv = raw
 	ok = true
 	return
@@ -83,7 +83,7 @@ echo_server_example :: proc() -> bool {
 	srv_opt: Maybe(^_Echo_Server) = srv
 	defer _echo_server_dispose(&srv_opt) // [itc: defer-dispose]
 
-	// Server thread: process exactly N_CLIENTS messages, then exit.
+	// Server thread: process exactly N_CLIENTS items, then exit.
 	server_thread := thread.create_and_start_with_data(
 		srv,
 		proc(data: rawptr) {
@@ -91,13 +91,13 @@ echo_server_example :: proc() -> bool {
 			processed := 0
 			for processed < s.count {
 				sync.sema_wait(&s.sema)
-				// Drain all available messages on each wake.
+				// Drain all available items on each wake.
 				for {
 					node := mpsc.pop(&s.q)
 					if node == nil {break}
-					msg := (^Echo_Msg)(node)
-					reply_to := msg.reply_to
-					reply: Maybe(^Echo_Msg) = msg // [itc: maybe-container]
+					itm := (^Echo_Msg)(node)
+					reply_to := itm.reply_to
+					reply: Maybe(^Echo_Msg) = itm // [itc: maybe-container]
 					mbox.send(reply_to, &reply)
 					processed += 1
 				}
@@ -122,16 +122,16 @@ echo_server_example :: proc() -> bool {
 				c := (^_Echo_Client)(data) // [itc: thread-container]
 
 				// Get a token (blocks if all tokens are in flight — backpressure).
-				msg, status := pool_pkg.get(&c.server.pool, .Pool_Only, -1)
-				if status != .Ok || msg == nil {
+				itm, status := pool_pkg.get(&c.server.pool, .Pool_Only, -1)
+				if status != .Ok || itm == nil {
 					return
 				}
 
-				msg.base.data = c.my_id
-				msg.reply_to = &c.inbox
+				itm.base.data = c.my_id
+				itm.reply_to = &c.inbox
 
 				// Push to server queue and wake the server.
-				m: Maybe(^Echo_Msg) = msg // [itc: maybe-container]
+				m: Maybe(^Echo_Msg) = itm // [itc: maybe-container]
 				if !mpsc.push(&c.server.q, &m) {
 					// push failed — return token to pool
 					defer { // [itc: defer-put]

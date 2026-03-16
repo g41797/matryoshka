@@ -11,13 +11,13 @@ Patterns shown:
 - stress: many producers, one consumer, pool recycling.
 - endless_game: circular passing of a heap-allocated message.
 - master: pool + mailbox owned by one struct, coordinated shutdown.
-- disposable_msg: message with internal heap resources — pool.get, fill, send, receive, pool.put with reset. dispose proc for permanent cleanup.
+- disposable_itm: item with internal heap resources — pool.get, fill, send, receive, pool.put with reset. dispose proc for permanent cleanup.
 - echo_server: raw mpsc.Queue + sync.Sema echo server — shows the building blocks of loop_mbox.
 
-Message allocation rules:
-- Never use stack-allocated messages across threads.
-  The stack frame can be freed before the receiving thread reads the message.
+Item allocation rules:
+- Never use stack-allocated items across threads.
+  The stack frame can be freed before the receiving thread reads the item.
 - Use new/free for simple, low-frequency use.
-- Use pool for many messages.
+- Use pool for many items.
 */
 package examples

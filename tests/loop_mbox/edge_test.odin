@@ -19,30 +19,30 @@ N_CS_SENDS :: 200
 
 // _Slab_Ctx holds state for one producer thread in test_concurrent_producers.
 _Slab_Ctx :: struct {
-	m:     ^loop_mbox.Mbox(examples.Msg),
-	slab:  []examples.Msg,
+	m:     ^loop_mbox.Mbox(examples.Itm),
+	slab:  []examples.Itm,
 	start: ^sync.Sema,
 }
 
 // _Send_Ctx holds state for one sender thread in test_close_during_send_race.
 _Send_Ctx :: struct {
-	m:    ^loop_mbox.Mbox(examples.Msg),
-	slab: []examples.Msg,
+	m:    ^loop_mbox.Mbox(examples.Itm),
+	slab: []examples.Itm,
 	sent: int, // updated atomically
 }
 
 @(test)
 test_concurrent_producers :: proc(t: ^testing.T) {
-	m := loop_mbox.init(examples.Msg)
+	m := loop_mbox.init(examples.Itm)
 	defer {_, _ = loop_mbox.close(m); loop_mbox.destroy(m)}
 
 	// Allocate message slabs — one per thread so each thread owns its messages.
-	slabs := make([][]examples.Msg, N_EP_THREADS)
+	slabs := make([][]examples.Itm, N_EP_THREADS)
 	defer delete(slabs)
 	for i in 0 ..< N_EP_THREADS {
-		slabs[i] = make([]examples.Msg, N_EP_MSGS)
+		slabs[i] = make([]examples.Itm, N_EP_MSGS)
 		for j in 0 ..< N_EP_MSGS {
-			slabs[i][j] = examples.Msg {
+			slabs[i][j] = examples.Itm {
 				data = i * N_EP_MSGS + j,
 			}
 		}
@@ -68,7 +68,7 @@ test_concurrent_producers :: proc(t: ^testing.T) {
 			c := (^_Slab_Ctx)(data)
 			sync.sema_wait(c.start)
 			for i in 0 ..< len(c.slab) {
-				msg_opt: Maybe(^examples.Msg) = &c.slab[i]
+				msg_opt: Maybe(^examples.Itm) = &c.slab[i]
 				loop_mbox.send(c.m, &msg_opt)
 			}
 		})
@@ -98,14 +98,14 @@ test_concurrent_producers :: proc(t: ^testing.T) {
 
 @(test)
 test_close_during_send_race :: proc(t: ^testing.T) {
-	m := loop_mbox.init(examples.Msg)
+	m := loop_mbox.init(examples.Itm)
 	defer loop_mbox.destroy(m)
 
 	// Allocate message slabs.
-	slabs := make([][]examples.Msg, N_CS_THREADS)
+	slabs := make([][]examples.Itm, N_CS_THREADS)
 	defer delete(slabs)
 	for i in 0 ..< N_CS_THREADS {
-		slabs[i] = make([]examples.Msg, N_CS_SENDS)
+		slabs[i] = make([]examples.Itm, N_CS_SENDS)
 	}
 	defer for i in 0 ..< N_CS_THREADS {
 		delete(slabs[i])
@@ -124,7 +124,7 @@ test_close_during_send_race :: proc(t: ^testing.T) {
 		threads[i] = thread.create_and_start_with_data(&ctxs[i], proc(data: rawptr) {
 			c := (^_Send_Ctx)(data)
 			for i in 0 ..< len(c.slab) {
-				msg_opt: Maybe(^examples.Msg) = &c.slab[i]
+				msg_opt: Maybe(^examples.Itm) = &c.slab[i]
 				ok := loop_mbox.send(c.m, &msg_opt)
 				if ok {
 					intrinsics.atomic_add(&c.sent, 1)
@@ -151,10 +151,10 @@ test_close_during_send_race :: proc(t: ^testing.T) {
 	}
 
 	// After close, send must return false.
-	dummy := examples.Msg {
+	dummy := examples.Itm {
 		data = -1,
 	}
-	dummy_opt: Maybe(^examples.Msg) = &dummy
+	dummy_opt: Maybe(^examples.Itm) = &dummy
 	ok := loop_mbox.send(m, &dummy_opt)
 	testing.expect(t, !ok, "send after close should return false")
 

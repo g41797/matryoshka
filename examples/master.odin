@@ -7,8 +7,8 @@ import list "core:container/intrusive/list"
 // Master owns a pool and a mailbox together.
 // One struct. One shutdown call. No leaks.
 Master :: struct {
-	pool:  pool_pkg.Pool(DisposableMsg),
-	inbox: mbox.Mailbox(DisposableMsg),
+	pool:  pool_pkg.Pool(DisposableItm),
+	inbox: mbox.Mailbox(DisposableItm),
 }
 
 // create_master is now a factory proc that demonstrates Idiom 11: errdefer-dispose.
@@ -24,7 +24,7 @@ create_master :: proc(initial_msgs: int, max_msgs: int) -> (m: ^Master, ok: bool
 	defer if !ok { master_dispose(&m_opt) }
 
 	init_ok, _ := pool_pkg.init(&raw.pool, initial_msgs = initial_msgs, max_msgs = max_msgs,
-		procs = &pool_pkg.T_Procs(DisposableMsg){ reset = disposable_reset })
+		hooks = DISPOSABLE_ITM_HOOKS)
 	if !init_ok { return }
 
 	// ... potential further setup ...
@@ -34,22 +34,22 @@ create_master :: proc(initial_msgs: int, max_msgs: int) -> (m: ^Master, ok: bool
 	return
 }
 
-// master_shutdown closes the inbox, returns undelivered messages to the pool, then destroys the pool.
+// master_shutdown closes the inbox, returns undelivered items to the pool, then destroys the pool.
 //
 // Order matters:
-// - Return messages to pool BEFORE destroy.
+// - Return items to pool BEFORE destroy.
 // - Calling destroy first would make the returned pointers invalid.
 master_shutdown :: proc(m: ^Master) {
 	remaining, _ := mbox.close(&m.inbox)
 	for node := list.pop_front(&remaining); node != nil; node = list.pop_front(&remaining) {
-		msg := container_of(node, DisposableMsg, "node")
-		msg_opt: Maybe(^DisposableMsg) = msg
-		
+		itm := container_of(node, DisposableItm, "node")
+		itm_opt: Maybe(^DisposableItm) = itm
+
 		// Demonstrating Idiom 8: dispose-optional
 		// We could just call disposable_dispose here, but we prefer recycling.
-		ptr, accepted := pool_pkg.put(&m.pool, &msg_opt) // [itc: dispose-optional]
+		ptr, accepted := pool_pkg.put(&m.pool, &itm_opt) // [itc: dispose-optional]
 		if !accepted && ptr != nil {
-			p_opt: Maybe(^DisposableMsg) = ptr
+			p_opt: Maybe(^DisposableItm) = ptr
 			disposable_dispose(&p_opt) // [itc: foreign-dispose]
 		}
 	}
@@ -75,22 +75,22 @@ master_example :: proc() -> bool {
 	m_opt: Maybe(^Master) = m
 	defer master_dispose(&m_opt) // [itc: defer-dispose]
 
-	msg, _ := pool_pkg.get(&m.pool)
-	if msg == nil {
+	itm, _ := pool_pkg.get(&m.pool)
+	if itm == nil {
 		return false
 	}
-	msg_opt: Maybe(^DisposableMsg) = msg // [itc: maybe-container]
-	
+	itm_opt: Maybe(^DisposableItm) = itm // [itc: maybe-container]
+
 	// Idiom 4: defer-dispose handles cleanup on send failure
-	defer disposable_dispose(&msg_opt) // [itc: defer-dispose]
-	
-	if !mbox.send(&m.inbox, &msg_opt) {
-		// send failed — return message to pool before defer-dispose fires
+	defer disposable_dispose(&itm_opt) // [itc: defer-dispose]
+
+	if !mbox.send(&m.inbox, &itm_opt) {
+		// send failed — return item to pool before defer-dispose fires
 		// demonstrating Idiom 2: defer-put with Idiom 6: foreign-dispose
 		defer { // [itc: defer-put]
-			ptr, accepted := pool_pkg.put(&m.pool, &msg_opt)
+			ptr, accepted := pool_pkg.put(&m.pool, &itm_opt)
 			if !accepted && ptr != nil {
-				p_opt: Maybe(^DisposableMsg) = ptr
+				p_opt: Maybe(^DisposableItm) = ptr
 				disposable_dispose(&p_opt) // [itc: foreign-dispose]
 			}
 		}
