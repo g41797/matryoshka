@@ -22,10 +22,10 @@ non-intrusive:             intrusive:
 │ Node    │──► │ Item │   │ Item             │
 │  next   │               │   node.next ──►  │
 └─────────┘               │   ... data ...   │
-                           └──────────────────┘
+                         A └──────────────────┘
 ```
 
-The queue threads through embedded nodes directly. The item IS the node carrier.
+The queue is linked via embedded nodes directly. The item IS the node carrier.
 Zero-copy is a consequence: only pointers travel, never data.
 
 `PolyNode` is the intrusive node for odin-itc. It is built on `core:container/intrusive` list node:
@@ -358,7 +358,7 @@ Where to find this documentation: `design/idioms.md`
 
 - **Ownership**: transfer heap pointers via `^Maybe(^PolyNode)`. On success, inner is nil — transfer complete. On failure, inner is unchanged — caller retains the pointer.
 - **Must return**: every item acquired from the pool must be returned — via `pool.put`, `pool.dispose`, or `mbox.send`. No exceptions.
-- **Intrusive**: every item embeds `PolyNode` (which embeds `intrusive.Node`) at offset 0. No separate node allocation. Queue threads through embedded nodes.
+- **Intrusive**: every item embeds `PolyNode` (which embeds `intrusive.Node`) at offset 0. No separate node allocation. Queue is linked via embedded nodes.
 - **Type-erased**: pool and mailbox operate on `^PolyNode` only. All concrete type knowledge lives in user code.
 - **Lifecycle**: items with internal resources use factory/reset/dispose/accept. Register them in `Pool_Hooks`. Pool calls them automatically with `ctx`, routed by `node.id`.
 - **Concurrency**: ITC participants live in heap-allocated structs. Thread procs hold only a pointer to the owner struct.
