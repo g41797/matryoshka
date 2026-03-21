@@ -13,10 +13,19 @@ Everything else — pool modes, mailbox mechanics, FlowPolicy hooks, backpressur
 import list "core:container/intrusive/list"
 
 PolyNode :: struct {
-    using node: list.Node,   // .next + .prev
+    using node: list.Node,   // .prev, .next
     id:         int,         // your type tag
 }
 ```
+
+Reminder:
+```odin
+// The list link you must include in your own structure.
+Node :: struct {
+	prev, next: ^Node,
+}
+```
+
 
 ```odin
 m: Maybe(^PolyNode)
@@ -30,8 +39,9 @@ look at the inner pointer of the `Maybe`.
 
 - `m^ != nil` → **you own** the item — you **must** eventually transfer it, return it to the pool, or dispose of it
 - `m^ == nil` → **transferred / consumed / gone** — do **not** touch the pointer anymore
+- `m == nil`  → **out of lack**
 
-This single bit of state replaces enums, return codes, reference counts, and ownership flags.
+It replaces enums, return codes, reference counts, and ownership flags, at least tries...
 
 ## Uniform Transfer Contract
 
@@ -40,7 +50,7 @@ Every ownership-moving API in odin-itc obeys **exactly the same entry/exit rules
 | API                | On entry (caller responsibility)          | On success (what happens to `m^`) | On most failures                  | Special failure case              |
 |--------------------|--------------------------------------------|------------------------------------|-----------------------------------|-----------------------------------|
 | `pool_get`         | `m^` must be `nil` (or `.Already_In_Use`) | `m^ = fresh or recycled item`      | `m^` unchanged                    | —                                 |
-| `mbox_send`        | caller owns via `m^ != nil`                | `m^ = nil` (transferred)           | `m^` unchanged (Closed, Full, …)  | —                                 |
+| `mbox_send`        | caller owns via `m^ != nil`                | `m^ = nil` (transferred)           | `m^` unchanged (Closed,  …)  | —                                 |
 | `pool_put`         | caller owns via `m^ != nil`                | `m^ = nil` (always, or panic)      | panic (unknown id)                | —                                 |
 | `flow_dispose`     | caller owns via `m^ != nil`                | `m^ = nil` (destroyed)             | —                                 | —                                 |
 | `mbox_wait_receive`| `out^` must be `nil`                       | `out^ = dequeued item`             | `out^` unchanged                  | `.Already_In_Use` if `out^ != nil`|

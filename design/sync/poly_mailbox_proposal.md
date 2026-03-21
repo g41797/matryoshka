@@ -2,7 +2,7 @@
 
 ## Problem
 
-An item traveling through a mailbox contains different data depending on context:
+An item traveling through itc contains different data depending on context:
 
 ```
 Chunk
@@ -12,9 +12,8 @@ Error
 Control
 ```
 
-These must coexist in the same communication flow.
+These must coexist in the same flow.
 
-Current design assumes one item type per mailbox. That is not enough for real systems.
 
 ## Hard constraints
 
@@ -47,17 +46,29 @@ Same pattern as Odin stdlib:
 ```odin
 PolyNode :: struct {
     using node: list.Node,
-    id:   int,        // user-defined enum value — stamped by factory on creation
+    id:   int,
+}
+```
+Reminder from core .. intrusive list:
+```odin
+// The list link you must include in your own structure.
+Node :: struct {
+	prev, next: ^Node,
 }
 ```
 
-`id` is an integer. User defines what it means. itc stores and delivers it. Nothing more.
+
+`id`:
+ - is an integer != 0
+ - defined by user
+ - opaque for mailbox
+ - important for pool, but it's another story
 
 ---
 
 ## Participant types
 
-Every type that travels through a poly mailbox embeds `PolyNode` first:
+Every type that travels through itc embeds `PolyNode` first:
 
 ```odin
 Chunk :: struct {
@@ -74,7 +85,10 @@ Progress :: struct {
 
 `using` promotes `next` and `id` directly onto the struct.
 Offset 0 rule — enforced by convention. No itc compile-time check.
-Whether participant types are themselves intrusive (carry additional nodes) does not matter — itc only requires `PolyNode` at offset 0.
+
+If you are brave enough, your embedded data also may be intrusive (carry additional nodes).
+Sky id the limit.
+but itc does not care.
 
 ---
 

@@ -1,4 +1,4 @@
-You are an expert Odin architect and senior technical writer, but not professor, you are also field developer
+You are an expert Odin architect and senior technical writer.
 
 I need to merge 4 overlapping design documents for odin-itc into exactly 3 clean, final files under design/compose folder:
 
@@ -80,4 +80,5 @@ Rules:
 - No fluff, no ads. without pathetic
 - Staff should be solved later - mark it for recognition with add. information what lacked
 
+Confirm understanding
 Begin.
