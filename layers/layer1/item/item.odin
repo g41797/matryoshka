@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 g41797
+// SPDX-License-Identifier: MIT
+
 package item
 
 import list "core:container/intrusive/list"
@@ -18,7 +21,7 @@ import "core:testing"
 // itc has no compile-time check for this — enforced by convention.
 //
 // id rules:
-//   - Must be > 0 after factory stamps it.
+//   - Must be != 0 after creation.
 //   - Zero is always invalid (zero value of int — catches uninitialized nodes).
 //   - Ids are user-defined, typically from an enum.
 //
@@ -35,7 +38,7 @@ import "core:testing"
 //   Maybe      — contractual: nil/non-nil tells every API who holds the item.
 PolyNode :: struct {
 	using node: list.Node, // intrusive link — .prev, .next
-	id:         int,       // type discriminator, stamped by factory, must be > 0
+	id:         int, // type discriminator, must be != 0
 }
 
 // --- Embedded tests ---
@@ -78,10 +81,10 @@ test_offset_zero_cast :: proc(t: ^testing.T) {
 
 @(test)
 test_id_zero_is_uninitialized :: proc(t: ^testing.T) {
-	// id == 0 means the node was never stamped by a factory.
-	// Callers must check id > 0 before use.
+	// id == 0 means the node was never stamped.
+	// Callers must check id != 0 before use.
 	n: PolyNode
 	testing.expect(t, n.id == 0, "uninitialized PolyNode has id == 0 (invalid)")
 	n.id = 1
-	testing.expect(t, n.id > 0, "after stamping, id must be > 0")
+	testing.expect(t, n.id != 0, "after stamping, id must be != 0")
 }

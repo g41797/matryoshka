@@ -1,15 +1,14 @@
 /*
-Package examples_hooks — Layer 1 examples: FlowPolicy for Event + Sensor
+Package examples_hooks — Ctor_Dtor examples for Event + Sensor
 
-Provides a concrete FlowPolicy implementation wired for two item types:
+Provides a concrete Ctor_Dtor for two item types:
 
   - Event:  carries a numeric code and a human-readable message.
   - Sensor: carries a name and a floating-point measurement.
 
-make_flow_policy() returns a ready-to-use FlowPolicy with factory and
-dispose set; on_get and on_put are nil (no sanitization or backpressure
-at Layer 1).
+make_ctor_dtor() returns a ready-to-use Ctor_Dtor with ctor and
+dtor set; on_get and on_put are nil when not needed.
 
-No pool, no invoker — just the hook vocabulary in action.
+No pool — just Ctor_Dtor in action.
 */
 package examples_hooks

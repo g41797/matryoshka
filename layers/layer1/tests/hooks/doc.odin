@@ -1,12 +1,12 @@
 /*
-Package hooks_tests — integration tests for Layer 1 hooks examples.
+Package hooks_tests — integration tests for hooks examples.
 
-Calls make_flow_policy() and invokes factory and dispose directly,
+Calls make_ctor_dtor() and invokes ctor and dtor directly,
 without a pool.  Verifies that:
 
-  - factory allocates the correct concrete type for known ids.
-  - factory returns nil for unknown ids.
-  - dispose frees the allocation and sets the handle to nil.
-  - roundtrip (factory → dispose) leaves no handle.
+  - ctor allocates the correct type for known ids.
+  - ctor returns nil for unknown ids.
+  - dtor frees the allocation and sets the handle to nil.
+  - roundtrip (ctor → dtor) leaves no handle.
 */
 package hooks_tests

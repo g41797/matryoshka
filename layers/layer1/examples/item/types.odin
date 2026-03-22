@@ -3,7 +3,7 @@ package examples
 import item "../../item"
 
 // ItemId identifies the concrete type stored behind a PolyNode.
-// Values must be > 0; 0 is always invalid (zero value of int).
+// Values must be != 0; 0 is always invalid (zero value of int).
 ItemId :: enum int {
 	Event  = 1,
 	Sensor = 2,

@@ -363,7 +363,7 @@ The second return value tells the caller whether the message was accepted.
 The pool stores messages allocated with its own allocator.
 If a message was allocated elsewhere (different allocator), the pool cannot recycle it.
 
-The pool still zeroes `msg^` to uphold the invariant — the caller's variable is always nil.
+The pool still zeroes `msg^` to uphold the rule — the caller's variable is always nil.
 It returns the raw pointer so the caller can free it with the correct allocator.
 
 ```odin
@@ -720,7 +720,7 @@ Without a borrow checker, in a language where pointers can be nil:
 - Nil-inner as no-op — safe to call unconditionally in cleanup.
 
 The pattern does not give you compile-time proof of correctness.
-It gives you runtime predictability: bugs are loud (nil dereference panics), not silent (stale pointer reads).
+It gives you runtime predictability: bugs are loud (nil dereference panics), not silent (dangling pointer reads).
 
 ### Origin
 
@@ -788,8 +788,8 @@ reset: proc(msg: ^T, e: Pool_Event)
 ```
 
 Called outside the mutex:
-- On `get`: called for recycled messages only (not fresh allocations). Use it to wipe stale state before the caller gets the message.
-- On `put`: called before the message goes back to the free-list. Use it to detect stale pointers early.
+- On `get`: called for recycled messages only (not fresh allocations). Use it to prepare the item for reuse before the caller gets it.
+- On `put`: called before the message goes back to the free-list. Use it to detect dangling pointers early.
 
 `Pool_Event` tells the hook which path triggered it: `.Get` or `.Put`.
 
@@ -1135,9 +1135,9 @@ DisposableMsg :: struct {
 }
 
 // Called by pool_get (before handing to caller) and pool.put (before free-list).
-// Clears stale fields. Does NOT free internal resources.
+// Prepares the item for reuse. Does NOT free internal resources.
 disposable_reset :: proc(msg: ^DisposableMsg, _: pool.Pool_Event) {
-    msg.name = ""   // clear stale reference — pool may reuse this slot
+    msg.name = ""   // clear reference — pool may reuse this slot
 }
 
 // Called by the caller when the message is permanently done.
@@ -1209,7 +1209,7 @@ Two different cleanup concerns.
 **`reset`** — message stays alive. It is being recycled.
 
 - Pool calls it automatically: on `get` before handing to caller, on `put` before free-list.
-- Use it to zero stale fields or close/reopen handles for reuse.
+- Use it to prepare the item for reuse — zero fields, close/reopen handles.
 - Does NOT free internal resources. Does NOT free the struct.
 - About **reuse hygiene**.
 
@@ -1222,7 +1222,7 @@ Two different cleanup concerns.
 A `DisposableMsg` may need both: `reset` to refresh on reuse, `dispose` when permanently discarded.
 
 ```odin
-// reset: called on every pool cycle — zero stale state
+// reset: called on every pool cycle — prepare for reuse
 disposable_reset :: proc(msg: ^DisposableMsg, _: pool.Pool_Event) {
     msg.name = ""   // clear — do not delete, pool will reuse slot
 }

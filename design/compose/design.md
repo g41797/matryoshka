@@ -1,7 +1,47 @@
 # odin-itc — Normative Specification
 
+====================================================
+Author notes - read, analyze, ask questions, proceed
+====================================================
+
+-------------
+    PolyNode :: struct {
+        using node: list.Node, // intrusive link — .prev, .next
+        id:         int,       // type discriminator, stamped by factory, must be != 0
+    }
+
+    id must be > 0 - wrong
+
+    id must be != 0 ==> Check and fix in all documentation and sources
+-------------
+
+-------------
+Remove AI-sh slop like
+    hook vocabulary
+everywhere (sources/docs)
+-------------
+
+-------------
+doc.odin and comments in sources
+    remove any layer-izm and ads
+    code know nothing about layers
+-------------
+
+-------------
+Don't talk about unknown for user terms, on any layer he can stop and use what he see
+    These are the same ownership semantics that pool and mailbox use in later layers.
+-------------
+
+
+---------------------------------
+IF NOTE GENERIC - ADD IT TO RULES
+---------------------------------
+
+====================================================
+
+
 > **This is the single source of truth.**
-> All API signatures, contracts, and invariants are defined here.
+> All API signatures, contracts, and rules are defined here.
 > When this file contradicts any other document — this file wins.
 
 Cross-reference: [Golden Contract](../sync/golden-contract.md) — read it first if you haven't.
@@ -21,7 +61,7 @@ You go deeper only when the next layer solves a real problem you have right now.
 | 1 | `PolyNode` + `Maybe` | everything else |
 | 2 | + hooks (`factory`, `dispose`) | pool, mailbox |
 | 3 | + simple pool (wrapper around hooks) | extended pool, mailbox |
-| 4 | + extended pool (free-list, backpressure) | mailbox |
+| 4 | + extended pool (free-list, flow control) | mailbox |
 | 5 | + mailbox | — full itc |
 
 **The rule:** move to the next layer because you need it — not because it is there.
@@ -49,61 +89,28 @@ When editing this document, follow these rules:
 - Label the context: `Send side:` / `Receive side:` / `Algorithm:` etc.
 
 **Tables**
-- Use for result codes, mode behavior, and invariants.
+- Use for result codes, mode behavior, and rules.
 - Keep column count minimal — two or three columns maximum.
 
 **Prose paragraphs**
 - Reserve for motivation and explanation, not for API contracts.
 - API contracts go in tables or bullet lists.
 
+**Source files**
+- Source files know nothing about layers — no layer references in comments or docs.
+- No forward references to terms not yet defined in the document.
+
 ---
 
-## What is itc? Why use it?
+## What is itc?
 
-**itc** is an inter-thread communication library for Odin.
-It gives you mailboxes — typed message queues where ownership is explicit and transfer is zero-copy.
-
-The mailbox idea goes back to the actor model (1973).
-Core insight: threads should not share memory — they should pass messages.
-When a message moves from one thread to another, exactly one thread owns it at any moment.
-No locks on the message itself.
-No copies.
-
-**Why not channels?**
-Odin's built-in channels are fine for many uses.
-itc helps when they don't fit:
-
-- **Zero allocation on the hot path** — items are recycled through a pool, not re-allocated for every message.
-- **Intrusive nodes** — the queue link lives inside your struct, not in a separate heap node. One allocation per item, ever.
-- **Interrupt** — unblock a waiting receiver without closing the mailbox. Useful for shutdown signalling that needs to round-trip cleanly.
-- **Timeout** — `wait_receive` accepts a duration. Pass `0` for non-blocking poll, `-1` for infinite wait.
-- **Controlled shutdown** — `mbox_close` returns all in-flight items as a drainable list. Nothing is leaked.
-- **Type-erased transport** — pool and mailbox operate on `^PolyNode` only. The concrete type lives only in your code.
-
-If channels work for you — use them.
-itc helps when they don't.
+Empty by intent.
 
 ---
 
 ## Decision Log
 
-Contradictions found in the four source documents and resolved here:
-
-| # | Issue | Resolution |
-|---|-------|------------|
-| 1 | `mbox_send` / `mbox_wait_receive` return values ignored in all examples | All examples now check return value. API returns `SendResult` / `RecvResult` enum — ignoring it is a bug. |
-| 2 | `policy.dispose` (field name) vs `flow_dispose` (user proc name) — two names for the same thing | `FlowPolicy.dispose` = struct field (stays). `flow_dispose` = canonical name for the user's implementation. Call sites use `flow_dispose(ctx, alloc, &m)`. Pool calls it internally as `policy.dispose(...)`. Both explained once here. |
-| 3 | "defer pool_put is unconditionally safe" — false if id is invalid | Qualified: safe for valid ids. Panics on unknown id — this is a programming error, not a recoverable condition. Panic surfaces it immediately. |
-| 4 | Double-put in receiver: `defer pool_put` at top + `pool_put` per case | Kept as intentional safety-net pattern. Cases set `m^ = nil` via explicit `pool_put` — defer becomes no-op. If a case panics or exits early, defer fires and recycles. Explained below. |
-| 5 | `mbox_close` had no return value in one doc, wrong type in another | Fixed: `mbox_close :: proc(mb: ^Mailbox) -> list.List`. Returns remaining items as a `list.List`. Empty list if already closed. |
-| 6 | `FlowId` values started at 0 in some examples | All ids must be > 0. Zero is reserved/invalid. Examples now use `Chunk = 1, Progress = 2`. |
-| 7 | API naming was mixed (dot notation vs underscore) | Underscore everywhere: `pool_init`, `pool_get`, `mbox_send`, etc. |
-| 8 | `SendResult` / `RecvResult` did not match implementation | Updated: `SendResult{Ok,Closed,Invalid}`, `RecvResult{Ok,Closed,Interrupted,Already_In_Use,Invalid,Timeout}`. Old `Mailbox_Error` merged and split across the three result enums. |
-| 9 | `mbox_interrupt` was missing from the API | Added. Returns `IntrResult{Ok,Closed,Already_Interrupted}`. |
-| 10 | `mbox_wait_receive` had no timeout parameter | Added `timeout: time.Duration = -1`. `-1` = infinite, `0` = non-blocking poll. `Timeout` added to `RecvResult`. |
-| 11 | `mbox_try_receive` listed as a separate proc | Dropped. Use `mbox_wait_receive(mb, out, 0)` instead (timeout=0). |
-| 12 | Mailbox and Pool struct internals were exposed | Hidden. Both show `...............` — access only through API. |
-| 13 | `pool_put` only panicked on unknown id, not on id==0 | Updated: panics on `id==0` (zero always invalid, system-wide) AND on id not in the pool's registered set. |
+None. Place for new decisions.
 
 ---
 
@@ -114,7 +121,7 @@ import list "core:container/intrusive/list"
 
 PolyNode :: struct {
     using node: list.Node, // intrusive link — .prev, .next
-    id:         int,       // type discriminator, stamped by factory, must be > 0
+    id:         int,       // type discriminator, stamped by factory, must be != 0
 }
 ```
 
@@ -279,10 +286,10 @@ A type-erased recycler:
 - Takes them back via `pool_put`
 - Knows nothing about what is inside the items
 
-All lifecycle logic is delegated to `FlowPolicy` hooks that live in user code:
+All lifecycle logic is delegated to `FlowPolicy` callbacks that live in user code:
 - allocation
 - reset
-- backpressure
+- flow control
 - disposal
 
 ### Mailbox
@@ -389,6 +396,31 @@ Not for all, but for most cases.
 | success (get, receive) | `non-nil` — you own it now |
 | failure (send closed) | unchanged — you still own it |
 | `pool_put` always | `nil` — or panic on unknown id |
+
+### Typed allocation to Maybe
+
+Allocate the concrete type, stamp it, then wrap in `Maybe` once.
+
+```odin
+ev := new(Event)
+ev.poly.id = int(ItemId.Event)
+ev.code    = 99
+m: Maybe(^PolyNode) = &ev.poly
+// [itc: typed-to-maybe] — Maybe is the sole owner; do NOT defer free(ev).
+```
+
+Rules:
+- Once wrapped in `Maybe`, the `Maybe` is the sole owner.
+- Do NOT `defer free` on the original typed variable.
+- For cleanup on failure: `flow_dispose(ctx, alloc, &m)`.
+
+> **Note for hook implementors.**
+> In full itc, this pattern appears only inside `factory` implementations.
+> User code calls `pool_get` — never `new` directly.
+> `factory` allocates, stamps, and returns `^PolyNode`; the pool wraps it in `Maybe` at the boundary.
+> Outside of hooks, this is not a user-code pattern.
+
+---
 
 → Full table in [Golden Contract](../sync/golden-contract.md).
 
@@ -585,7 +617,7 @@ Pool holds reusable items.
 Type-erased — operates on `^PolyNode` only.
 Mechanism only — all lifecycle decisions live in `FlowPolicy`:
 - allocation
-- backpressure
+- flow control
 - disposal
 
 ### Types
@@ -622,12 +654,12 @@ FlowPolicy :: struct {
     factory: proc(ctx: rawptr, alloc: mem.Allocator, id: int, in_pool_count: int) -> (^PolyNode, bool),
 
     // Called BEFORE pool_get returns a recycled item to caller.
-    // Use for zeroing or sanitizing stale data. Must NOT free internal resources.
+    // Use it to prepare the item for reuse. Must NOT free internal resources.
     on_get:  proc(ctx: rawptr, m: ^Maybe(^PolyNode)),
 
     // Called during pool_put, outside lock.
-    // m^ == nil after hook → pool discards (consumed, e.g. backpressure).
-    // m^ != nil after hook → pool MUST add to free-list. This is an invariant, not optional.
+    // m^ == nil after hook → pool discards (consumed).
+    // m^ != nil after hook → pool MUST add to free-list. This is a rule, not optional.
     on_put:  proc(ctx: rawptr, alloc: mem.Allocator, in_pool_count: int, m: ^Maybe(^PolyNode)),
 
     // Called for every node remaining in the pool during pool_destroy.
@@ -675,7 +707,7 @@ pool_init    :: proc(p: ^Pool, policy: FlowPolicy, ids: []int, alloc := context.
 pool_destroy :: proc(p: ^Pool)
 ```
 
-`ids`: complete set of valid item ids for this pool. All must be > 0. Non-empty.
+`ids`: complete set of valid item ids for this pool. All must be != 0. Non-empty.
 
 `pool_destroy` algorithm:
 1. Drains all free-lists.
@@ -815,11 +847,11 @@ for {
 
 ### Rules
 
-- Every item id must be > 0 (zero is reserved/invalid, system-wide)
+- Every item id must be != 0 (zero is reserved/invalid, system-wide)
 - `pool_init` accepts the complete set of valid ids for this pool
 - `pool_put` panics on `id == 0` and on id not in the pool's registered set
 - `mbox_send` returns `.Invalid` if `m^.id == 0`
-- `factory` stamps `node.id` at allocation time
+- `factory` stamps `node.id` at allocation time — `factory` is one allocator, not the only one; the user sets id
 - Id values are user-defined integer constants — typically from an enum
 
 ### Why panic on unknown id?
@@ -841,7 +873,7 @@ Panicking on zero catches missing `factory` stamps immediately.
 
 ```odin
 FlowId :: enum int {
-    Chunk    = 1,  // must be > 0
+    Chunk    = 1,  // must be != 0
     Progress = 2,
 }
 
@@ -897,7 +929,7 @@ on_get :: proc(ctx: rawptr, m: ^Maybe(^PolyNode))
 Called before `pool_get` returns a **recycled** item to caller.
 Not called for freshly allocated items.
 
-Use for zeroing or sanitizing stale data.
+Use it to prepare the item for reuse.
 **Must NOT free internal resources.**
 
 ```odin
@@ -919,9 +951,9 @@ on_put :: proc(ctx: rawptr, alloc: mem.Allocator, in_pool_count: int, m: ^Maybe(
 
 Called during `pool_put`, outside lock.
 
-- `in_pool_count`: current count of items with this id in the free-list. Use it to decide backpressure.
-- If hook sets `m^ = nil` → item is consumed (e.g. disposed to shed load). Pool will not add it to free-list.
-- If hook leaves `m^ != nil` → pool **must** add to free-list. This is an invariant.
+- `in_pool_count`: current count of items with this id in the free-list. Use it to decide flow control.
+- If hook sets `m^ = nil` → item is consumed. Pool will not add it to free-list.
+- If hook leaves `m^ != nil` → pool **must** add to free-list. This is a rule.
 
 ```odin
 flow_on_put :: proc(ctx: rawptr, alloc: mem.Allocator, in_pool_count: int, m: ^Maybe(^PolyNode)) {
@@ -1117,15 +1149,15 @@ if pool_get(&p, int(FlowId.Chunk), .Recycle_Only, &m) != .Ok {
 
 ## Invariants
 
-| # | Invariant | Consequence of violation |
-|---|-----------|--------------------------|
-| I1 | `m^` is the ownership bit. Non-nil = you own it. | Double-free or leak. |
-| I2 | All hooks called outside pool mutex. | Guaranteed by pool. User may hold their own locks inside hooks. |
-| I3 | `on_get` is called on every recycled item before it reaches caller. | No stale data leaks into new lifecycle. |
-| I4 | Pool maintains per-id `in_pool_count`. Passed to `factory` and `on_put`. | Enables accurate backpressure. |
-| I5 | `id == 0` on `pool_put` or `mbox_send` → immediate panic or `.Invalid`. | Programming errors surface immediately, not silently. |
-| I6 | Unknown id on `pool_put` → immediate panic. | Programming errors surface immediately, not silently. |
-| I7 | `on_put`: if `m^ != nil` after hook → pool MUST add to free-list. | Invariant. If hook wants to discard, it must set `m^ = nil`. |
+| # | Rule | Consequence of violation |
+|---|------|--------------------------|
+| R1 | `m^` is the ownership bit. Non-nil = you own it. | Double-free or leak. |
+| R2 | All callbacks called outside pool mutex. | Guaranteed by pool. User may hold their own locks inside callbacks. |
+| R3 | `on_get` is called on every recycled item before it reaches caller. | Item may not be ready for reuse. |
+| R4 | Pool maintains per-id `in_pool_count`. Passed to `factory` and `on_put`. | Enables flow control. |
+| R5 | `id == 0` on `pool_put` or `mbox_send` → immediate panic or `.Invalid`. | Programming errors surface immediately, not silently. |
+| R6 | Unknown id on `pool_put` → immediate panic. | Programming errors surface immediately, not silently. |
+| R7 | `on_put`: if `m^ != nil` after hook → pool MUST add to free-list. | If hook wants to discard, it must set `m^ = nil`. |
 
 ---
 

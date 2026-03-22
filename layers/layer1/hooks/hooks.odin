@@ -2,26 +2,26 @@ package hooks
 
 import item "../item"
 
-// FlowPolicy is the struct-interface that every pool will call.
-// At Layer 1 you define it and provide implementations.
-// At Layer 2+ a pool holds a FlowPolicy and calls these procs.
+// Ctor_Dtor groups allocation and disposal callbacks.
+// From years of C++ experience: ctor allocates, dtor frees.
+// on_get and on_put are extensions for pool reuse — not required here.
 //
-// All four fields are optional (nil is valid — no-op for that hook).
-// A minimal implementation sets factory and dispose; on_get and on_put
-// are left nil when no sanitization or backpressure is needed.
-FlowPolicy :: struct {
-	// factory allocates and stamps the correct concrete type for id.
+// All four fields are optional (nil is valid — no-op for that callback).
+// ctor and dtor are required for useful operation; on_get and on_put
+// are left nil when not needed.
+Ctor_Dtor :: struct {
+	// ctor allocates the correct type for id, sets id, returns ^PolyNode.
 	// Returns nil on failure or unknown id.
-	factory: proc(id: int) -> Maybe(^item.PolyNode),
+	ctor:    proc(id: int) -> Maybe(^item.PolyNode),
 
 	// on_get is called before a recycled item is returned to the caller.
-	// Use it to zero or sanitize stale fields. Must NOT free resources.
+	// Use it to prepare the item for reuse. Must NOT free resources.
 	on_get:  proc(m: ^Maybe(^item.PolyNode)),
 
 	// on_put is called during pool_put, outside the lock.
-	// Set m^ = nil to consume the item (backpressure); otherwise the pool recycles it.
+	// Set m^ = nil to consume the item; otherwise the pool recycles it.
 	on_put:  proc(m: ^Maybe(^item.PolyNode)),
 
-	// dispose frees internal resources and the node itself, then sets m^ = nil.
-	dispose: proc(m: ^Maybe(^item.PolyNode)),
+	// dtor frees internal resources and the node itself, then sets m^ = nil.
+	dtor:    proc(m: ^Maybe(^item.PolyNode)),
 }

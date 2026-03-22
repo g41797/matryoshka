@@ -33,7 +33,7 @@ DisposableItm :: struct {
 	name:      string, // heap-allocated — must be freed before the struct
 }
 
-// disposable_reset clears stale state without freeing internal resources.
+// disposable_reset prepares the item for reuse without freeing internal resources.
 // Pool calls it automatically on get (before handing to caller) and on put (before free-list).
 // Does NOT free name. Pool reuses the slot.
 // [itc: reset-vs-dispose]

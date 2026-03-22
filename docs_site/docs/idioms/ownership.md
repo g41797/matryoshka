@@ -60,7 +60,7 @@ if mbox_send(&mb, &m) { /* success */ }
 ### `reset-vs-dispose` — reset vs dispose
 **Problem**: It is easy to confuse `reset` (for reuse) with `dispose` (for permanent cleanup).
 **Fix**: Keep them separate. Never free internal resources in `reset`.
-- **`reset`**: Clears stale state for reuse. Called by the pool before returning an item to the free list.
+- **`reset`**: Prepares item for reuse. Called by the pool before returning an item to the free list.
 - **`dispose`**: Frees internal resources permanently. Called by the pool on permanent destruction.
 
 ### `t-hooks` — T_Hooks pattern

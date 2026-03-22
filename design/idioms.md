@@ -195,7 +195,7 @@ Where to find this documentation: `design/idioms.md`
 
 ---
 
-## Core invariants
+## Core rules
 
 - **Ownership**: transfer heap pointers via `^Maybe(^T)`. On success, inner is nil — transfer complete. On failure, inner is unchanged — caller retains the pointer.
 - **Lifecycle**: items with internal resources use factory/reset/dispose. Register them in `T_Hooks`. The pool calls them automatically.
@@ -445,7 +445,7 @@ if !recycled && ptr != nil {
 | Hook | When called | What it does |
 |------|-------------|--------------|
 | `factory` | Fresh allocation | Allocates struct, sets allocator, inits internal resources |
-| `reset` | Get (recycled) and Put (before free-list) | Clears stale state for reuse. Never frees internal resources |
+| `reset` | Get (recycled) and Put (before free-list) | Prepares item for reuse. Never frees internal resources |
 | `dispose` | Permanent destruction (destroy, put-when-full) | Frees internal resources, frees struct, sets itm^ = nil |
 
 ```odin

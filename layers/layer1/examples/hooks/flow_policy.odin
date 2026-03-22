@@ -1,10 +1,10 @@
 package examples_hooks
 
+import h "../../hooks"
 import item "../../item"
-import h    "../../hooks"
 
 // ItemId identifies the concrete type stored behind a PolyNode.
-// Values must be > 0; 0 is always invalid (zero value of int).
+// Values must be != 0; 0 is always invalid (zero value of int).
 ItemId :: enum int {
 	Event  = 1,
 	Sensor = 2,
@@ -24,9 +24,9 @@ Sensor :: struct {
 	value:      f64,
 }
 
-// item_factory allocates and stamps the correct concrete type for id.
+// item_ctor allocates the correct type for id and sets id.
 // Returns nil for unknown ids.
-item_factory :: proc(id: int) -> Maybe(^item.PolyNode) {
+item_ctor :: proc(id: int) -> Maybe(^item.PolyNode) {
 	switch ItemId(id) {
 	case .Event:
 		ev := new(Event)
@@ -41,9 +41,9 @@ item_factory :: proc(id: int) -> Maybe(^item.PolyNode) {
 	}
 }
 
-// item_dispose frees internal resources and the node, then sets m^ = nil.
+// item_dtor frees internal resources and the node, then sets m^ = nil.
 // Safe to call with m == nil or m^ == nil (no-op).
-item_dispose :: proc(m: ^Maybe(^item.PolyNode)) {
+item_dtor :: proc(m: ^Maybe(^item.PolyNode)) {
 	if m == nil {
 		return
 	}
@@ -63,11 +63,8 @@ item_dispose :: proc(m: ^Maybe(^item.PolyNode)) {
 	m^ = nil
 }
 
-// make_flow_policy returns a FlowPolicy wired for Event + Sensor.
-// on_get and on_put are left nil — no backpressure or sanitization at Layer 1.
-make_flow_policy :: proc() -> h.FlowPolicy {
-	return h.FlowPolicy{
-		factory = item_factory,
-		dispose = item_dispose,
-	}
+// make_ctor_dtor returns a Ctor_Dtor for Event + Sensor.
+// on_get and on_put are left nil — not needed here.
+make_ctor_dtor :: proc() -> h.Ctor_Dtor {
+	return h.Ctor_Dtor{ctor = item_ctor, dtor = item_dtor}
 }

@@ -170,7 +170,7 @@ policy.ctx = &master // runtime — ctx points to Master or any user state
 pool_init(&p, policy, {int(FlowId.Chunk), int(FlowId.Progress)}, master.allocator)
 ```
 
-pool_init registers the complete set of valid ids for this pool. All ids must be > 0.
+pool_init registers the complete set of valid ids for this pool. All ids must be != 0.
 `ctx` is runtime — cannot be set in a `::` constant.
 
 ### Three modes

@@ -1,10 +1,10 @@
 //+test
 package item_tests
 
-import "core:testing"
-import list "core:container/intrusive/list"
-import item "../../item"
 import ex "../../examples/item"
+import item "../../item"
+import list "core:container/intrusive/list"
+import "core:testing"
 
 @(test)
 test_produce_consume :: proc(t: ^testing.T) {
@@ -55,10 +55,10 @@ test_list_order :: proc(t: ^testing.T) {
 
 @(test)
 test_mixed_ids :: proc(t: ^testing.T) {
-	// Every ItemId value must be > 0 and the dispatch table covers all of them.
+	// Every ItemId value must be != 0 and the dispatch table covers all of them.
 	all_ids := []ex.ItemId{.Event, .Sensor}
 	for id in all_ids {
-		testing.expect(t, int(id) > 0, "every ItemId must be > 0")
+		testing.expect(t, int(id) != 0, "every ItemId must be != 0")
 	}
 	// Verify the enum covers exactly two values.
 	testing.expect(t, len(all_ids) == 2, "ItemId must have exactly 2 values")

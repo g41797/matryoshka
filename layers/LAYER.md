@@ -14,7 +14,7 @@
 | 1 | `PolyNode` + `Maybe` | everything else |
 | 2 | + hooks (`factory`, `dispose`) | pool, mailbox |
 | 3 | + simple pool (wrapper around hooks) | extended pool, mailbox |
-| 4 | + extended pool (free-list, backpressure) | mailbox |
+| 4 | + extended pool (free-list, flow control) | mailbox |
 | 5 | + mailbox | — full itc |
 
 **Rule:** move to the next layer because you need it — not because it is there.
@@ -58,7 +58,7 @@ This is accepted — layer1 is a slightly richer layer1, all tests pass.
 // package item
 PolyNode :: struct {
     using node: list.Node, // intrusive link — .prev, .next
-    id:         int,       // type discriminator, must be > 0
+    id:         int,       // type discriminator, must be != 0
 }
 
 // package hooks

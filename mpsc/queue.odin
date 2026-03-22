@@ -57,7 +57,7 @@ push :: proc(q: ^Queue($T), msg: ^Maybe(^T)) -> bool where intrinsics.type_has_f
 // Returns nil in two cases:
 //   - Queue is empty.
 //   - Stall: a producer has started push but not yet finished linking the node.
-//     In a stall, len may be > 0 while pop returns nil.
+//     In a stall, len may be != 0 while pop returns nil.
 //     Treat nil as "try again". The next call to pop will return the message.
 //
 // Wrap the result in Maybe(^T) for lifecycle tracking: m = pop(q)
@@ -99,7 +99,7 @@ pop :: proc(q: ^Queue($T)) -> ^T where intrinsics.type_has_field(T, "node"),
 }
 
 // length returns the approximate number of items in the queue.
-// May be > 0 while pop returns nil (stall state — see pop comment).
+// May be != 0 while pop returns nil (stall state — see pop comment).
 length :: proc(q: ^Queue($T)) -> int where intrinsics.type_has_field(T, "node"),
 	intrinsics.type_field_type(T, "node") == list.Node {
 	return intrinsics.atomic_load(&q.len)

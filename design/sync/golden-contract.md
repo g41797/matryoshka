@@ -3,9 +3,9 @@
 **^Maybe(^PolyNode) + Strict ID Panic**
 
 This is the **single most important rule** of odin-itc.
-Everything else — pool modes, mailbox mechanics, FlowPolicy hooks, backpressure — is built around it or exists to serve it.
+Everything else — pool modes, mailbox mechanics, FlowPolicy callbacks, flow control — is built around it or exists to serve it.
 
-## Core Invariant
+## Core Rule
 
 **Ownership exists if and only if** `m^ != nil`
 
@@ -119,7 +119,7 @@ defer pool_put(&p, &m)                   // always safe (nil → no-op, non-nil 
 ## Where to look next
 
 - [Mailbox API](./mailbox.md) — detailed send/receive contracts
-- [Pool API](./pool.md) — modes, FlowPolicy hooks, backpressure via `on_put`
+- [Pool API](./pool.md) — modes, FlowPolicy callbacks, flow control via `on_put`
 - [Idioms](./idioms.md) — `defer-put`, `heap-master`, `thread-container`
 
 This contract is **not optional**.

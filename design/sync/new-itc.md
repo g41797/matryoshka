@@ -264,7 +264,7 @@ pool_put_all :: proc(
 
 ## Rules
 
-- Every item id must be > 0 (zero is reserved/invalid)
+- Every item id must be != 0 (zero is reserved/invalid)
 - pool_init accepts the complete set of valid ids for this pool
 - pool_put validates the item's id on every call — unknown id causes panic
 - factory stamps node.id at allocation time

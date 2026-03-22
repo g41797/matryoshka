@@ -7,6 +7,6 @@ Document the Mailbox component: bounded, typed message queue with ownership sema
 ## To be written
 
 - API surface (create, send, recv, close)
-- Capacity and backpressure behavior
+- Capacity and flow control behavior
 - Lifecycle (open → active → closed)
 - Usage examples

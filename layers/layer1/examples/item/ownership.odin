@@ -1,14 +1,10 @@
 package examples
 
-import list "core:container/intrusive/list"
 import item "../../item"
+import list "core:container/intrusive/list"
 
-// example_ownership demonstrates Maybe(^item.PolyNode) as an ownership handle.
-//
-// Push means "hand off" — after push you no longer own the item.
-// Pop means "receive" — after pop you own it and must free or transfer it.
-//
-// These are the same ownership semantics that pool and mailbox use in later layers.
+// After push you no longer own the item.
+// After pop you own it and must free or transfer it.
 example_ownership :: proc() -> bool {
 	l: list.List
 
@@ -19,6 +15,7 @@ example_ownership :: proc() -> bool {
 	ev.message = "owned"
 
 	// 2. Take ownership via Maybe.
+	// [itc: typed-to-maybe] — Maybe is now the sole owner; do NOT defer free(ev).
 	m: Maybe(^item.PolyNode) = &ev.poly
 
 	// 3. Push to list — ownership transferred; set m to nil (you no longer own it).

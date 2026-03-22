@@ -55,7 +55,7 @@ FlowPolicy :: struct {
 `pool_init(p: ^Pool, policy: FlowPolicy, ids: []int, alloc := context.allocator)`
 Initializes MPMC headers and internal accounting.
 
-`ids`: the complete set of valid item IDs this pool may hold. Must be non-empty. All IDs must be > 0. Passing an unknown ID to pool_put will panic.
+`ids`: the complete set of valid item IDs this pool may hold. Must be non-empty. All IDs must be != 0. Passing an unknown ID to pool_put will panic.
 
 ### `pool_get`
 `pool_get(p: ^Pool, id: int, mode: Pool_Get_Mode, out: ^Maybe(^PolyNode)) -> (ok: bool)`
@@ -113,7 +113,7 @@ Silent handling (returning the item to caller) masks bugs and creates undefined 
 ### FlowId definition
 ```odin
 FlowId :: enum int {
-    Chunk    = 1,  // id must be > 0
+    Chunk    = 1,  // id must be != 0
     Progress = 2,
 }
 ```

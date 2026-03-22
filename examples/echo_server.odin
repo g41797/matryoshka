@@ -75,7 +75,7 @@ _Echo_Client :: struct {
 // echo_server_example shows raw mpsc.Queue + sync.Sema — building blocks of loop_mbox.
 echo_server_example :: proc() -> bool {
 	N_CLIENTS :: 8
-	M_MSGS    :: 4 // fewer tokens than clients — forces backpressure
+	M_MSGS    :: 4 // fewer tokens than clients — forces flow control
 
 	srv, ok := create_echo_server(M_MSGS, N_CLIENTS)
 	if !ok {
@@ -122,7 +122,7 @@ echo_server_example :: proc() -> bool {
 			proc(data: rawptr) {
 				c := (^_Echo_Client)(data) // [itc: thread-container]
 
-				// Get a token (blocks if all tokens are in flight — backpressure).
+				// Get a token (blocks if all tokens are in flight — flow control).
 				itm_opt: Maybe(^Echo_Msg)
 				status := pool_pkg.get(&c.server.pool, &itm_opt, .Pool_Only, -1)
 				if status != .Ok || itm_opt == nil {

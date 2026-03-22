@@ -128,7 +128,7 @@ close :: proc(m: ^Mbox($T)) -> (list.List, bool) where intrinsics.type_has_field
 }
 
 // length returns the approximate number of messages in the queue.
-// May be > 0 while try_receive returns nil (stall state — see package doc).
+// May be != 0 while try_receive returns nil (stall state — see package doc).
 length :: proc(m: ^Mbox($T)) -> int where intrinsics.type_has_field(T, "node"),
 	intrinsics.type_field_type(T, "node") == list.Node {
 	return mpsc.length(&m.queue)

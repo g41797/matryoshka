@@ -401,7 +401,7 @@ Describe pipeline pattern using mpsc and mailbox.
 ## Must cover
 - stages
 - flow of ownership
-- backpressure considerations
+- flow control considerations
 
 ## Output
 Reader can design pipeline system.

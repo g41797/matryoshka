@@ -1,12 +1,9 @@
 /*
-Package hooks — Layer 1: FlowPolicy struct-interface
+Package hooks — Ctor_Dtor
 
-FlowPolicy is the hook vocabulary every pool will call in later layers.
-At Layer 1 you define it and provide one concrete implementation
-(Event + Sensor, wired in examples/hooks).
+Ctor_Dtor groups allocation and disposal callbacks.
+Implemented in examples/hooks.
 
-No pool, no invoker — just the struct definition and proc-pointer types.
-
-Move to Layer 2 when you need a pool that holds and calls a FlowPolicy.
+Struct definition and proc-pointer types only.
 */
 package hooks

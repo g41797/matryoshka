@@ -275,7 +275,7 @@ A pool holds a set of reusable items. It is type-erased — it operates on `^Pol
 - `pool_get` takes an `id` and a `mode` — `id` selects the concrete type to allocate, `mode` selects the allocation strategy.
 - `FlowPolicy` (containing `ctx` and `factory`, `on_get`, `on_put`, `dispose` hooks) tells the pool how to manage the item lifecycle. `on_get` is used for sanitizing recycled items. `ctx` is forwarded to every hook call, carrying the allocator and any other needed state.
 - Unknown id passed to pool_put causes an immediate panic — programming errors surface immediately.
-- pool_init registers the set of valid ids for this pool. All ids must be > 0.
+- pool_init registers the set of valid ids for this pool. All ids must be != 0.
 
 ### Mbox (Mailbox)
 
