@@ -619,22 +619,28 @@ The panic in step 1 means no silent "what happens on unknown id" — it crashes 
 
 ### defer pool_put — when is it safe?
 
+`pool_put` with `m^ == nil` is always a no-op — no id check, no panic.
+This means `defer pool_put` can be placed immediately after `m: Maybe(^PolyNode)`, before `pool_get`:
+
 ```odin
 m: Maybe(^PolyNode)
-if pool_get(&p, id, .Available_Or_New, &m) == .Ok {
-    defer pool_put(&p, &m)  // safety net
-    // ... work ...
+defer pool_put(&p, &m)  // [itc: defer-put-early] — safe: pool_put is no-op when m^ == nil
+if pool_get(&p, id, .Available_Or_New, &m) != .Ok {
+    return
 }
+// ... work ...
 ```
 
 Three outcomes when `defer pool_put` fires:
-- `m^ == nil` (item was already transferred to another service) → `pool_put` is a no-op
+- `m^ == nil` (pool_get failed, or item was transferred) → `pool_put` is a no-op
 - `m^ != nil` (item was not transferred) → `pool_put` recycles or `on_put` disposes
 - `m^ != nil` with unknown id or zero id → `pool_put` panics — programming error, surfaces immediately
 
 Safe for valid ids.
 Panics on unknown or zero id.
 The panic is the correct behavior — it tells you exactly where the bug is.
+
+> `[itc: defer-put-early]` — candidate for `design/sync/new-idioms.md`.
 
 ### put_all — return a chain
 
@@ -1020,6 +1026,69 @@ The cast `(^PolyNode)(raw)` is safe because:
 
 ---
 
+### try_receive_batch — non-blocking batch drain
+
+```odin
+try_receive_batch :: proc(mb: ^Mailbox) -> list.List
+```
+
+- Non-blocking — never waits.
+- Returns all currently available items as `list.List`.
+- Returns empty list on: nothing available, closed, interrupted, any error.
+- If mailbox is in interrupted state: clears the flag before returning.
+- Without clearing, the next `mbox_wait_receive` would immediately return `.Interrupted` again — breaking the wait loop.
+- Caller owns all items in the returned list.
+
+**What the list contains:**
+
+`list.List` is a chain of `^list.Node` — intrusive links, not `^Maybe(^PolyNode)`.
+Each node is a `PolyNode` (`PolyNode` embeds `list.Node` via `using` at offset 0).
+Wrap each item in `Maybe` at the processing boundary:
+
+```odin
+batch := try_receive_batch(&mb)
+for {
+    raw := list.pop_front(&batch)
+    if raw == nil { break }
+    poly := (^PolyNode)(raw)        // safe — list.Node is first field of PolyNode
+    m: Maybe(^PolyNode) = poly      // wrap for ownership tracking
+    defer pool_put(&p, &m)          // [itc: defer-put-early]
+    // process item
+}
+```
+
+**Two-mailbox interrupt + batch pattern:**
+
+Thread blocks on a control mailbox.
+Sender interrupts it when data is ready on a second mailbox.
+Thread wakes, drains the data mailbox in batch:
+
+```odin
+for {
+    m: Maybe(^PolyNode)
+    switch mbox_wait_receive(&mb_control, &m) {
+    case .Ok:
+        // handle control message
+        pool_put(&p, &m)
+    case .Interrupted:
+        // woken by sender — interrupted flag already cleared by try_receive_batch
+        batch := try_receive_batch(&mb_data)
+        for {
+            raw := list.pop_front(&batch)
+            if raw == nil { break }
+            poly := (^PolyNode)(raw)
+            m2: Maybe(^PolyNode) = poly
+            defer pool_put(&p, &m2)
+            // process data item
+        }
+    case .Closed:
+        return
+    }
+}
+```
+
+---
+
 ## Full Lifecycle Example
 
 Sender and receiver are in separate threads. `m` variables are different.
@@ -1044,7 +1113,7 @@ m: Maybe(^PolyNode)
 if pool_get(&master.pool, int(FlowId.Chunk), .Available_Or_New, &m) != .Ok {
     return  // not created or pool closed
 }
-defer pool_put(&master.pool, &m)  // safety net: fires if send fails
+defer pool_put(&master.pool, &m)  // [itc: defer-put-early] safety net: fires if send fails
 
 // fill
 c := (^Chunk)(m.?)
