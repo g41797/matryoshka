@@ -11,24 +11,29 @@ OPTS=(none minimal size speed aggressive)
 BUILDS=(
     item
     hooks
+    pool
     examples/item
     examples/hooks
+    examples/pool
 )
 
 TESTS=(
     item
     tests/item
     tests/hooks
+    tests/pool
 )
 
 DOCS=(
     item
     hooks
+    pool
     examples/item
     examples/hooks
+    examples/pool
 )
 
-echo "${BLUE}Starting doll1 local CI...${NC}"
+echo "${BLUE}Starting doll2 local CI...${NC}"
 
 if ! command -v odin >/dev/null 2>&1; then
     echo "Error: odin compiler not found in PATH"

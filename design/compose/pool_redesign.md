@@ -68,6 +68,7 @@ You check `m^` after the call. nil = gone. non-nil = still yours.
 ```odin
 PoolHooks :: struct {
     ctx:    rawptr,
+    ids:    [dynamic]int,   // user-owned; non-empty, all != 0; user deletes in freeMaster
     on_get: proc(ctx: rawptr, id: int, in_pool_count: int, m: ^Maybe(^PolyNode)),
     on_put: proc(ctx: rawptr, in_pool_count: int, m: ^Maybe(^PolyNode)),
 }
@@ -78,6 +79,8 @@ Two procs only. Both communicate through `m`.
 Both procs are required.
 
 `ctx` may be nil. Pool passes it as-is. Hook is responsible for handling nil `ctx` safely.
+
+`ids` is a `[dynamic]int` owned by the user. Populate with `append` before calling `pool_init`. Delete in `freeMaster` before `free(master, alloc)`. Pool stores a slice view `valid_ids = hooks.ids[:]` for post-close id validation.
 
 ---
 
@@ -125,7 +128,7 @@ After `on_put`:
 ## Pool API
 
 ```odin
-pool_init     :: proc(p: ^Pool, hooks: ^PoolHooks, ids: []int)
+pool_init     :: proc(p: ^Pool, hooks: ^PoolHooks)
 pool_close    :: proc(p: ^Pool) -> (list.List, ^PoolHooks)
 pool_get      :: proc(p: ^Pool, id: int, mode: Pool_Get_Mode, out: ^Maybe(^PolyNode)) -> Pool_Get_Result
 pool_put      :: proc(p: ^Pool, m: ^Maybe(^PolyNode))
@@ -170,6 +173,8 @@ Caller always knows what to do:
 ## pool_put contract
 
 - Foreign `id` (not in `ids[]`) → **panic**. Always. Closed or open.
+
+> **Implementation note:** Odin's `in` operator does not work on `[dynamic]int`. Use `slice.contains(hooks.ids[:], id)` or a linear scan for the id validation check.
 - Closed pool + valid id → `m^` stays non-nil on return. Caller owns the item. Must dispose manually.
 - Open pool → `on_put` decides: hook sets `m^=nil` (disposed) or leaves `m^!=nil` (stored).
 
@@ -213,7 +218,9 @@ newMaster :: proc(alloc: mem.Allocator) -> ^Master {
         on_get = master_on_get,
         on_put = master_on_put,
     }
-    pool_init(&m.pool, &m.hooks, ids)
+    append(&m.hooks.ids, int(SomeId.A))  // populate ids before pool_init
+    append(&m.hooks.ids, int(SomeId.B))
+    pool_init(&m.pool, &m.hooks)
     return m
 }
 
@@ -232,7 +239,10 @@ freeMaster :: proc(master: ^Master) {
     // 3. clean up other Master resources
     // ...
 
-    // 4. free Master last — save alloc first, struct is gone after free
+    // 4. delete ids dynamic array (user-owned, populated before pool_init)
+    delete(master.hooks.ids)
+
+    // 5. free Master last — save alloc first, struct is gone after free
     alloc := master.alloc
     free(master, alloc)
 }

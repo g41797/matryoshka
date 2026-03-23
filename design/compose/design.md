@@ -623,8 +623,9 @@ Pool_Get_Result :: enum {
 
 ```odin
 PoolHooks :: struct {
-    ctx:    rawptr,  // user context — carries master or any state; allocator too if hooks need it
-                     // may be nil — pool passes it as-is
+    ctx:    rawptr,         // user context — carries master or any state; allocator too if hooks need it
+                            // may be nil — pool passes it as-is
+    ids:    [dynamic]int,   // user-owned; non-empty, all != 0; user deletes in freeMaster
     on_get: proc(ctx: rawptr, id: int, in_pool_count: int, m: ^Maybe(^PolyNode)),
     on_put: proc(ctx: rawptr, in_pool_count: int, m: ^Maybe(^PolyNode)),
 }
@@ -638,7 +639,7 @@ Both proc fields are required.
 ### Init / Close
 
 ```odin
-pool_init  :: proc(p: ^Pool, hooks: ^PoolHooks, ids: []int)
+pool_init  :: proc(p: ^Pool, hooks: ^PoolHooks)
 pool_close :: proc(p: ^Pool) -> (list.List, ^PoolHooks)
 ```
 
@@ -677,7 +678,9 @@ newMaster :: proc(alloc: mem.Allocator) -> ^Master {
         on_get = master_on_get,
         on_put = master_on_put,
     }
-    pool_init(&m.pool, &m.hooks, ids)
+    append(&m.hooks.ids, int(SomeId.A))  // populate ids before pool_init
+    append(&m.hooks.ids, int(SomeId.B))
+    pool_init(&m.pool, &m.hooks)
     return m
 }
 
@@ -689,6 +692,8 @@ freeMaster :: proc(master: ^Master) {
         if raw == nil { break }
         // dispose node — master knows how
     }
+    // delete ids dynamic array (user-owned, populated before pool_init)
+    delete(master.hooks.ids)
     alloc := master.alloc
     free(master, alloc)
 }
@@ -767,6 +772,7 @@ Algorithm — in this order:
 1. Check `m.?.id`:
    - `id == 0` → **PANIC** (zero is always invalid, system-wide)
    - `id not in ids[]` → **PANIC** (not registered in this pool — programming error)
+     > **Implementation note:** Odin's `in` operator does not work on `[dynamic]int`. Use `slice.contains(hooks.ids[:], id)` or a linear scan.
 2. Get `in_pool_count` for this id (under lock, then unlock)
 3. Call `hooks.on_put(ctx, in_pool_count, m)` — **outside lock**
 4. If `m^` is still non-nil → push to free-list, increment count, set `m^ = nil` (under lock)

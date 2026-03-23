@@ -1,0 +1,32 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build Tests",
+            "type": "shell",
+            "command": "/home/g41797/.local/bin/odin",
+            "args": [
+                "build",
+                "${workspaceFolder}/${input:testPackage}",
+                "-build-mode:test",
+                "-debug",
+                "-o:none",
+                "-out:${workspaceFolder}/debug_current"
+            ],
+            "group": "build",
+            "problemMatcher": []
+        }
+    ],
+    "inputs": [
+        {
+            "id": "testPackage",
+            "type": "pickString",
+            "description": "Select test package",
+            "options": [
+                { "label": "tests/item/",  "value": "tests/item" },
+                { "label": "tests/hooks/", "value": "tests/hooks" },
+                { "label": "tests/pool/",  "value": "tests/pool" }
+            ]
+        }
+    ]
+}

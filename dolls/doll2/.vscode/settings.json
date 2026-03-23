@@ -1,0 +1,22 @@
+{
+    "[odin]": {
+        "editor.formatOnSave": true,
+        "editor.insertSpaces": false,
+        "editor.detectIndentation": false,
+        "editor.rulers": [100]
+    },
+    "files.trimTrailingWhitespace": true,
+    "files.insertFinalNewline": true,
+    "files.trimFinalNewlines": true,
+    "files.exclude": {
+        "**/*.a": true,
+        "**/*.o": true,
+        "**/*.obj": true,
+        "**/*.pdb": true,
+        "debug_current": true
+    },
+    "search.exclude": {
+        "**/*.a": true,
+        "**/*.o": true
+    }
+}

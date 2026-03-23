@@ -1,3 +1,4 @@
+![](_logo/horowod_mbox.png)
 # Matryoshka — Layered Inter-Thread Communication
 
 The endless inter-threaded game...
