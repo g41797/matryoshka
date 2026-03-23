@@ -3,16 +3,16 @@
     "hide_base": true,
     "collections": {
         "mbox": {
-            "name": "odin-itc",
-            "source_url": "https://github.com/g41797/odin-itc/blob/main",
-            "base_url": "/odin-itc",
+            "name": "matryoshka",
+            "source_url": "https://github.com/g41797/matryoshka/blob/main",
+            "base_url": "/matryoshka",
             "root_path": "PROJECT_ROOT",
             "license": {
                 "text": "MIT",
-                "url": "https://github.com/g41797/odin-itc/tree/main/LICENSE"
+                "url": "https://github.com/g41797/matryoshka/tree/main/LICENSE"
             },
             "home": {
-                "title": "odin-itc",
+                "title": "matryoshka",
                 "embed_readme": "PROJECT_ROOT/docs/README.md"
             }
         }

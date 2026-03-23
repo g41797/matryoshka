@@ -9,7 +9,7 @@ mbox is intrusive. The message struct is the node. No extra allocation per messa
 Allocate messages on the heap. Never pass stack-allocated messages across threads.
 
 ```odin
-import mbox "path/to/odin-itc"
+import mbox "path/to/matryoshka"
 import list "core:container/intrusive/list"
 
 Msg :: struct {
@@ -45,7 +45,7 @@ if got != nil { free(got.?) }
 One mailbox. Multiple message types. Use a common base struct with a kind field.
 
 ```odin
-import mbox "path/to/odin-itc"
+import mbox "path/to/matryoshka"
 import list "core:container/intrusive/list"
 import "core:fmt"
 
@@ -185,7 +185,7 @@ See `examples/negotiation.odin` for a working version of this pattern.
 Many producers, one consumer. Use a pool for zero-allocation recycling.
 
 ```odin
-import pool_pkg "path/to/odin-itc/pool"
+import pool_pkg "path/to/matryoshka/pool"
 
 // Setup:
 shared_pool: pool_pkg.Pool(Msg)
@@ -303,7 +303,7 @@ See `examples/endless_game.odin` for the full implementation.
 Use a pool when you send many messages and want to avoid repeated heap allocations.
 
 ```odin
-import pool_pkg "path/to/odin-itc/pool"
+import pool_pkg "path/to/matryoshka/pool"
 
 // Setup (once, before any threads start):
 p: pool_pkg.Pool(Msg)
@@ -343,7 +343,7 @@ Key rule: drain the mailbox BEFORE destroying the pool.
 If you destroy the pool first, the messages still in the mailbox become dangling pointers.
 
 ```odin
-import pool_pkg "path/to/odin-itc/pool"
+import pool_pkg "path/to/matryoshka/pool"
 
 Master :: struct {
     pool:  pool_pkg.Pool(Msg),

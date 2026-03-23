@@ -1,6 +1,6 @@
 # Idioms Reference
 
-Quick reference for odin-itc idioms.
+Quick reference for matryoshka idioms.
 Each idiom has a short tag for grep.
 
 These are not laws. No one is forced to follow them.
@@ -28,7 +28,7 @@ non-intrusive:             intrusive:
 The queue is linked via embedded nodes directly. The item IS the node carrier.
 Zero-copy is a consequence: only pointers travel, never data.
 
-`PolyNode` is the intrusive node for odin-itc.
+`PolyNode` is the intrusive node for matryoshka.
 
 ```odin
 PolyNode :: struct {
@@ -77,8 +77,8 @@ This is the same pattern Odin uses throughout its standard library:
 | `thread.create` | `data: rawptr` | `(^Master)(data)` in thread proc |
 | `mem.Allocator` | `data: rawptr` | procedure table routes by mode |
 | `context.user_ptr` | `rawptr` | caller casts |
-| odin-itc pool | `^PolyNode` | user casts via `node.id` |
-| odin-itc mailbox | `^PolyNode` | user casts via `node.id` |
+| matryoshka pool | `^PolyNode` | user casts via `node.id` |
+| matryoshka mailbox | `^PolyNode` | user casts via `node.id` |
 
 `PolyNode` is a structured `rawptr` — a pointer plus a discriminator.
 The discriminator (`id`) is what makes the cast safe on the user side.
@@ -201,7 +201,7 @@ if pool_get(&pool, int(FlowId.Chunk), .Recycle_Or_Alloc, &m) {
 
 ## Building blocks
 
-odin-itc has five object types. Every concurrent system built with this library uses them.
+matryoshka has five object types. Every concurrent system built with this library uses them.
 
 ### Master
 
@@ -856,7 +856,7 @@ sync.mutex_lock(&m)
 defer sync.mutex_unlock(&m)
 ```
 
-**Rule**: This is a foundational Odin pattern. In `odin-itc`, **never mark it with a tag** in the source code. It is documented here for reference only.
+**Rule**: This is a foundational Odin pattern. In `matryoshka`, **never mark it with a tag** in the source code. It is documented here for reference only.
 
 ### Advice & Best Practices
 

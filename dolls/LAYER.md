@@ -1,4 +1,4 @@
-# layers/LAYER.md — spiral layer state
+# dolls/LAYER.md — spiral layer state
 
 > Resume anchor for layer implementation sessions.
 > Start every session by reading this file.
@@ -17,7 +17,7 @@
 | 4 | + extended pool (free-list, flow control) | mailbox |
 | 5 | + mailbox | — full itc |
 
-**Rule:** move to the next layer because you need it — not because it is there.
+**Rule:** move to the next doll because you need it — not because it is there.
 
 ---
 
@@ -35,7 +35,7 @@
 
 ## Layer 1 — complete
 
-**Path:** `layers/layer1/`
+**Path:** `dolls/layer1/`
 
 **Note:** layer1 contains `hooks` (`ctor`, `dtor` proc fields only).
 Per spec, hooks belong at layer2.
@@ -74,7 +74,7 @@ Note: layer1 `Ctor_Dtor` has `ctor` and `dtor` only — create and destroy, no p
 ### Build
 
 ```sh
-cd layers/layer1 && ./build_and_test.sh
+cd dolls/layer1 && ./build_and_test.sh
 ```
 
 Runs 5 opt levels (`none minimal size speed aggressive`) + doc smoke test.
@@ -90,11 +90,11 @@ with a non-generic `Queue` working on `^PolyNode`.
 
 **Source:** Vyukov algorithm from `mpsc/queue.odin` — same algorithm, same properties.
 
-**Why layer 2:**
+**Why doll 2:**
 - Simpler than pool + mailbox (no blocking, no pool, no lifecycle hooks needed)
 - Usable for simple MT producer-consumer systems on its own
 - Builds on layer1's `PolyNode` — fits the spiral type contract
-- Foundation for `loop_mbox` (a future layer)
+- Foundation for `loop_mbox` (a future doll)
 
 ### API
 
@@ -112,7 +112,7 @@ Caller wraps for lifecycle tracking when needed: `m: Maybe(^PolyNode) = pop(&q)`
 **Queue is NOT copyable after init** — stub address is embedded in head/tail.
 
 ```odin
-// package mpsc  (layers/layer2/mpsc/)
+// package mpsc  (dolls/layer2/mpsc/)
 import item "../item"   // PolyNode from layer1
 
 Queue :: struct {
@@ -126,8 +126,8 @@ Queue :: struct {
 ### Directory layout
 
 ```
-layers/layer2/
-├── item/              — copy from layer1/item/ (PolyNode dependency, layer self-contained)
+dolls/layer2/
+├── item/              — copy from layer1/item/ (PolyNode dependency, doll self-contained)
 ├── mpsc/              — PolyNode-adapted queue (~same size as mpsc/queue.odin)
 ├── examples/
 │   └── mpsc/          — MT example: N producers, 1 consumer, dispatch on PolyNode.id
@@ -153,14 +153,14 @@ layers/layer2/
 ### Build
 
 ```sh
-cd layers/layer2 && ./build_and_test.sh
+cd dolls/layer2 && ./build_and_test.sh
 ```
 
 ---
 
 ## Conventions
 
-- Every layer lives under `layers/layerN/`.
-- Each layer is a self-contained Odin workspace with its own `build_and_test.sh`.
+- Every doll lives under `dolls/layerN/`.
+- Each doll is a self-contained Odin workspace with its own `build_and_test.sh`.
 - Packages import siblings via relative paths (e.g. `"../item"`).
 - Update this file as part of every layer session — before ending the session.

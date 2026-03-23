@@ -1,4 +1,4 @@
-# odin-itc
+# matryoshka
 
 The endless inter-threaded game...
 
@@ -70,7 +70,7 @@ Both are thread-safe. Both have zero allocations for sending or receiving.
 
 ### nbio_mbox note
 
-nbio_mbox is a concept implementation. It shows how odin-itc can be injected into a foreign
+nbio_mbox is a concept implementation. It shows how matryoshka can be injected into a foreign
 event loop (`core:nbio`). Tests run on Linux only. Not production-ready. Not intended to be.
 For production use, wire your own wakeup via the `WakeUper` interface.
 
@@ -78,7 +78,7 @@ For production use, wire your own wakeup via the `WakeUper` interface.
 
 ## Examples
 
-Check the [examples/](https://github.com/g41797/odin-itc/tree/main/examples) directory for:
+Check the [examples/](https://github.com/g41797/matryoshka/tree/main/examples) directory for:
 
 - **Endless Game**: 4 threads pass a single heap-allocated message in a circle.
 - **Negotiation**: Request and reply between a worker thread and an `nbio` loop.
@@ -100,8 +100,8 @@ Check the [examples/](https://github.com/g41797/odin-itc/tree/main/examples) dir
 
 ## Learn more
 
-- [Architecture details](https://github.com/g41797/odin-itc/blob/main/design/mailbox_design.md)
-- [Common usage patterns](https://github.com/g41797/odin-itc/blob/main/design/mbox_examples.md)
+- [Architecture details](https://github.com/g41797/matryoshka/blob/main/design/mailbox_design.md)
+- [Common usage patterns](https://github.com/g41797/matryoshka/blob/main/design/mbox_examples.md)
 
 ---
 

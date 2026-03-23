@@ -1,6 +1,6 @@
-# odin-itc Demo: Ownership-Driven Data Flow (Compression Pipeline)
+# matryoshka Demo: Ownership-Driven Data Flow (Compression Pipeline)
 
-This document shows how to build a simple multi-threaded process using `odin-itc`.
+This document shows how to build a simple multi-threaded process using `matryoshka`.
 
 The goal is not to demonstrate APIs, but to show a different way of thinking:
 
@@ -130,7 +130,7 @@ One pool. One mailbox. All three item kinds travel through the same pipe.
 
 # 4. How Developers Talk
 
-Without `odin-itc`, developers say:
+Without `matryoshka`, developers say:
 
 ```text
 lock this
@@ -139,7 +139,7 @@ signal there
 protect shared state
 ```
 
-With `odin-itc`, the same system becomes:
+With `matryoshka`, the same system becomes:
 
 ```text
 I'll get a chunk from the pool

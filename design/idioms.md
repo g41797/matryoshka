@@ -1,6 +1,6 @@
 # Idioms Reference
 
-Quick reference for odin-itc idioms.
+Quick reference for matryoshka idioms.
 Each idiom has a short tag for grep.
 
 These are not laws. No one is forced to follow them.
@@ -42,7 +42,7 @@ send(&mb, &m)          // m = nil on success (dispose becomes no-op)
 
 ## Building blocks
 
-odin-itc has five object types. Every concurrent system built with this library uses them.
+matryoshka has five object types. Every concurrent system built with this library uses them.
 Understanding what each one is — and why it exists — makes the idioms below easier to follow.
 
 ### Master
@@ -578,7 +578,7 @@ sync.mutex_lock(&m)
 defer sync.mutex_unlock(&m)
 ```
 
-**Rule**: This is a foundational Odin pattern. In `odin-itc`, **never mark it with a tag** in the source code. It is documented here for reference only.
+**Rule**: This is a foundational Odin pattern. In `matryoshka`, **never mark it with a tag** in the source code. It is documented here for reference only.
 
 ### Advice & Best Practices for New Idioms
 

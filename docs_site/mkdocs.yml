@@ -1,8 +1,8 @@
-site_name: odin-itc
+site_name: matryoshka
 site_description: Concurrency toolkit for Odin
-site_url: https://g41797.github.io/odin-itc/
-repo_url: https://github.com/g41797/odin-itc/
-repo_name: odin-itc on GitHub
+site_url: https://g41797.github.io/matryoshka/
+repo_url: https://github.com/g41797/matryoshka/
+repo_name: matryoshka on GitHub
 
 theme:
   name: material

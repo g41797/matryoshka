@@ -1,6 +1,6 @@
 You are an expert Odin architect and senior technical writer, but not professor, you are also field developer
 
-I need to merge 4 overlapping design documents for odin-itc into exactly 3 clean, final files under design/compose folder:
+I need to merge 4 overlapping design documents for matryoshka into exactly 3 clean, final files under design/compose folder:
 
 1. overview.md          → high-level mental model and motivation (1–2 pages max)
 2. design.md            → THE NORMATIVE SPECIFICATION (single source of truth for APIs, contracts, invariants)

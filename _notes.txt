@@ -33,25 +33,25 @@ Add core:nbio#6124
 
 Run under workspace
 
-    code odin-itc.code-workspace
+    code matryoshka.code-workspace
 
     Flow:
 
     EXPLORER
     ├── root/                    ← .vscode/ at repo root
     │   ├── mbox/, mpsc/, tests/ ...
-    └── layer1/                  ← layers/layer1/.vscode/
+    └── layer1/                  ← dolls/layer1/.vscode/
         ├── item/, hooks/
         └── tests/
 
     F5 in a root file   → "Debug Tests" → picks from: mpsc/, wakeup/, tests/, tests/mbox/ ...
     F5 in a layer1 file → "Debug Tests" → picks from: tests/item/, tests/hooks/
 
-    ${workspaceFolder} resolves to the correct root for each — repo root or layers/layer1/ — so paths and binaries stay separate.
+    ${workspaceFolder} resolves to the correct root for each — repo root or dolls/layer1/ — so paths and binaries stay separate.
 
-    When layer2 arrives: add { "name": "layer2", "path": "layers/layer2" } to the .code-workspace file and create
-    layers/layer2/.vscode/.
+    When layer2 arrives: add { "name": "layer2", "path": "dolls/layer2" } to the .code-workspace file and create
+    dolls/layer2/.vscode/.
 
 To create layerN+1 when the time comes:
 
-    cd layers && ./create_layer.sh
+    cd dolls && ./create_layer.sh

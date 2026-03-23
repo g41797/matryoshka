@@ -38,7 +38,7 @@ Rules:
 
 If you stop, resume with:
 
-"Continue odin-itc docs from STAGE X.
+"Continue matryoshka docs from STAGE X.
 Here is current mkdocs.yml and structure:
 [PASTE]"
 

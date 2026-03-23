@@ -1,4 +1,4 @@
-# odin-itc: How the pieces fit
+# matryoshka: How the pieces fit
 
 This document explains the system in plain terms.
 No API details. Only the model.
@@ -12,9 +12,9 @@ Related docs:
 
 ---
 
-# 1 What odin-itc is
+# 1 What matryoshka is
 
-odin-itc is a **local message system for threads**.
+matryoshka is a **local message system for threads**.
 
 Threads do not call each other.
 Threads exchange **items** through **mailboxes**.
@@ -373,7 +373,7 @@ The dialog shows how real protocols lead naturally to:
 
 # 13 Short summary
 
-odin-itc is built on a few simple ideas:
+matryoshka is built on a few simple ideas:
 
 ```
 items are intrusive objects
@@ -392,7 +392,7 @@ Everything in the system follows these rules.
 
 ## Short architectural summary
 
-odin-itc is a small runtime for message-based thread cooperation.
+matryoshka is a small runtime for message-based thread cooperation.
 
 The system is built from a few simple components.
 
@@ -548,7 +548,7 @@ pools manage object lifecycle
 threads do not own runtime state
 ```
 
-Everything else in odin-itc follows these rules.
+Everything else in matryoshka follows these rules.
 
 Architectural note:
 
@@ -566,7 +566,7 @@ Anything shorter will lose important meaning.
 
 ---
 
-For odin-itc the important things are:
+For matryoshka the important things are:
 
 - who owns
 - who moves items
@@ -579,7 +579,7 @@ This diagram shows the runtime in one picture.
 
 A good architectural diagram must show **structure and flow**, not components only.
 
-For odin-itc the important things are:
+For matryoshka the important things are:
 
 * who **owns**
 * who **moves items**
@@ -590,7 +590,7 @@ Everything else is detail.
 
 This diagram shows the runtime in one picture.
 
-## odin-itc runtime diagram
+## matryoshka runtime diagram
 
 ```
                          THREADS
@@ -677,7 +677,7 @@ Most diagrams fail because they mix these.
 
 ---
 
-# odin-itc runtime model
+# matryoshka runtime model
 
 This document explains how the system is structured.
 
@@ -693,9 +693,9 @@ Related documents:
 
 ---
 
-# 1 What odin-itc is
+# 1 What matryoshka is
 
-odin-itc is a **local message runtime for cooperating components**.
+matryoshka is a **local message runtime for cooperating components**.
 
 Components exchange **items** through **mailboxes**.
 Object lifetime is managed by **pools**.
@@ -953,7 +953,7 @@ They control **object lifecycle**.
 
 # 8 Ownership model
 
-odin-itc uses explicit ownership transfer.
+matryoshka uses explicit ownership transfer.
 
 The protocol uses:
 
@@ -1069,4 +1069,4 @@ masters contain logic and resources
 execution containers only provide execution
 ```
 
-Everything in odin-itc follows these rules.
+Everything in matryoshka follows these rules.

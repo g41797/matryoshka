@@ -15,7 +15,7 @@ rm -rf build
 mkdir build
 
 # Generate intermediate binary format for our project
-odin doc ../mbox ../mpsc ../pool ../wakeup ../loop_mbox ../nbio_mbox ../examples -all-packages -doc-format -out:odin-itc.odin-doc
+odin doc ../mbox ../mpsc ../pool ../wakeup ../loop_mbox ../nbio_mbox ../examples -all-packages -doc-format -out:matryoshka.odin-doc
 
 # Create a temporary config with absolute paths
 sed "s|PROJECT_ROOT|$ROOT_DIR|g" odin-doc.json > build/odin-doc.json
@@ -23,7 +23,7 @@ sed "s|PROJECT_ROOT|$ROOT_DIR|g" odin-doc.json > build/odin-doc.json
 cd build
 
 # Render to HTML using the binary built in tools/
-"$ROOT_DIR/tools/odin-doc" ../odin-itc.odin-doc ./odin-doc.json
+"$ROOT_DIR/tools/odin-doc" ../matryoshka.odin-doc ./odin-doc.json
 
 # Post-process: remove "Generation Information" sections and TOC links
 find . -name "index.html" -exec sed -i '/<h2 id="pkg-generation-information">/,/<p>Generated with .*<\/p>/d' {} +
@@ -35,32 +35,32 @@ find . -name "index.html" -exec sed -i '/<li><a href="#pkg-generation-informatio
 sed -i 's|href="/\([^/]\)|href="./\1|g' index.html
 sed -i 's|src="/\([^/]\)|src="./\1|g' index.html
 # Fix the library link specifically (it should point to its own subdirectory)
-sed -i 's|href="./odin-itc"|href="./odin-itc/"|g' index.html
+sed -i 's|href="./matryoshka"|href="./matryoshka/"|g' index.html
 # Fix the blank root package link text
-sed -i 's|<a href="./odin-itc/"></a>|<a href="./odin-itc/">mbox</a>|g' index.html
+sed -i 's|<a href="./matryoshka/"></a>|<a href="./matryoshka/">mbox</a>|g' index.html
 
-# 2. Collection home index.html (in odin-itc/ directory — depth 1)
-if [ -d "odin-itc" ]; then
-    sed -i 's|href="/\([^/]\)|href="../\1|g' odin-itc/index.html
-    sed -i 's|src="/\([^/]\)|src="../\1|g' odin-itc/index.html
+# 2. Collection home index.html (in matryoshka/ directory — depth 1)
+if [ -d "matryoshka" ]; then
+    sed -i 's|href="/\([^/]\)|href="../\1|g' matryoshka/index.html
+    sed -i 's|src="/\([^/]\)|src="../\1|g' matryoshka/index.html
     # Fix self-links and navigation in the package page
-    sed -i 's|href="\.\./odin-itc"|href="../odin-itc/"|g' odin-itc/index.html
+    sed -i 's|href="\.\./matryoshka"|href="../matryoshka/"|g' matryoshka/index.html
     # Fix the blank root package link text
-    sed -i 's|<a href="../odin-itc/"></a>|<a href="../odin-itc/">mbox</a>|g' odin-itc/index.html
+    sed -i 's|<a href="../matryoshka/"></a>|<a href="../matryoshka/">mbox</a>|g' matryoshka/index.html
 fi
 
-# 3. Sub-package index.html files (in odin-itc/*/ directory — depth 2)
-for subdir in odin-itc/*/; do
+# 3. Sub-package index.html files (in matryoshka/*/ directory — depth 2)
+for subdir in matryoshka/*/; do
     if [ -f "${subdir}index.html" ]; then
         sed -i 's|href="/\([^/]\)|href="../../\1|g' "${subdir}index.html"
         sed -i 's|src="/\([^/]\)|src="../../\1|g' "${subdir}index.html"
         # Fix the blank root package link text
-        sed -i 's|<a href="../../odin-itc/"></a>|<a href="../../odin-itc/">mbox</a>|g' "${subdir}index.html"
+        sed -i 's|<a href="../../matryoshka/"></a>|<a href="../../matryoshka/">mbox</a>|g' "${subdir}index.html"
     fi
 done
 
 cd ..
 
-rm odin-itc.odin-doc
+rm matryoshka.odin-doc
 
 cd ..

@@ -4,7 +4,7 @@
 
 The endless inter-threaded game...
 
-[![CI](https://github.com/g41797/odin-itc/actions/workflows/ci.yml/badge.svg)](https://github.com/g41797/odin-itc/actions/workflows/ci.yml)
+[![CI](https://github.com/g41797/matryoshka/actions/workflows/ci.yml/badge.svg)](https://github.com/g41797/matryoshka/actions/workflows/ci.yml)
 
 
 ---
@@ -161,7 +161,7 @@ for node := list.pop_front(&remaining); node != nil; node = list.pop_front(&rema
 ### nbio loop mailbox
 
 > **nbio_mbox — concept implementation.**
-> nbio_mbox shows how odin-itc can be injected into a foreign event loop (`core:nbio`).
+> nbio_mbox shows how matryoshka can be injected into a foreign event loop (`core:nbio`).
 > Tests run on Linux only. Not production-ready. Not intended to be.
 > For production use, wire your own wakeup via the `WakeUper` interface.
 
@@ -170,7 +170,7 @@ Handle commands and I/O on one thread.
 A no-op makes wake-up work on all systems.
 
 ```odin
-import loop_mbox "path/to/odin-itc/loop_mbox"
+import loop_mbox "path/to/matryoshka/loop_mbox"
 
 // nbio loop (receiver thread):
 loop := nbio.current_thread_event_loop()
@@ -204,7 +204,7 @@ loop_mbox.send(m, &msg) // msg = nil after this — mbox owns it
 This example shows the full lifecycle: allocation, interruption, and cleanup.
 
 ```odin
-import mbox "path/to/odin-itc"
+import mbox "path/to/matryoshka"
 import list "core:container/intrusive/list"
 
 mb: mbox.Mailbox(My_Msg)
@@ -239,7 +239,7 @@ for node := list.pop_front(&remaining); node != nil; node = list.pop_front(&rema
 To reuse items, use the `pool` package.
 
 ```odin
-import pool_pkg "path/to/odin-itc/pool"
+import pool_pkg "path/to/matryoshka/pool"
 import "core:mem"
 import "core:time"
 

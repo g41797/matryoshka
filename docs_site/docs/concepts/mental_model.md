@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Establish the core mental model for reasoning about concurrency in odin-itc.
+Establish the core mental model for reasoning about concurrency in matryoshka.
 
 ## To be written
 

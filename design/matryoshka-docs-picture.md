@@ -5,7 +5,7 @@
 ## Site structure (final target)
 
 ```
-odin-itc/
+matryoshka/
   docs_site/
     docs/
       index.md
@@ -57,7 +57,7 @@ Each stage:
 
 ### Input to Claude:
 
-> Create mkdocs project structure for odin-itc with folders:
+> Create mkdocs project structure for matryoshka with folders:
 > concepts, idioms, components, guides, api
 > Each .md should contain placeholder instructions only (no real content)
 
@@ -191,7 +191,7 @@ Instead of writing docs, Claude writes:
 # Mailbox
 
 ## Purpose
-Explain what mailbox is in odin-itc
+Explain what mailbox is in matryoshka
 
 ## When to use
 Describe scenarios
@@ -277,7 +277,7 @@ docs_site/
 # 3. mkdocs.yml (COPY)
 
 ```yaml
-site_name: odin-itc
+site_name: matryoshka
 site_description: Message-driven concurrency toolkit for Odin
 
 theme:
@@ -319,7 +319,7 @@ nav:
 ## index.md
 
 ```md
-# odin-itc
+# matryoshka
 
 Message-driven concurrency toolkit for Odin.
 
@@ -352,7 +352,7 @@ This documentation is under construction.
 # Mental Model
 
 ## Purpose
-Explain the core philosophy of odin-itc.
+Explain the core philosophy of matryoshka.
 
 ## Must cover
 - message-driven design
@@ -515,6 +515,6 @@ So structure first is not just correct — it’s essential.
 If next step you want, I can:
 
 * generate prompts for Claude/Gemini per stage (copy-paste ready)
-* or refine structure specifically for your current odin-itc repo content
+* or refine structure specifically for your current matryoshka repo content
 
 Just tell me.

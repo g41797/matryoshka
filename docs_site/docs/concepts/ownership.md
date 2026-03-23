@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Explain how ownership of messages and resources is managed in odin-itc.
+Explain how ownership of messages and resources is managed in matryoshka.
 
 ## To be written
 

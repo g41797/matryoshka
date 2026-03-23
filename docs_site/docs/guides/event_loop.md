@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Guide the user through building a single-threaded event loop using odin-itc primitives.
+Guide the user through building a single-threaded event loop using matryoshka primitives.
 
 ## To be written
 

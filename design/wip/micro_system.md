@@ -14,13 +14,13 @@ The starting point is the **tofu mantra** (`github.com/g41797/tofu`): a short di
 
 Design the communication contract through conversation before writing code.
 
-The same dialog applies directly to odin-itc. The two developers are designing the protocol between two odin-itc Masters. The messages they discuss are **items from pools**. The channels are **mboxes**. The Worker instances on R's side are **items in a thread pool**.
+The same dialog applies directly to matryoshka. The two developers are designing the protocol between two matryoshka Masters. The messages they discuss are **items from pools**. The channels are **mboxes**. The Worker instances on R's side are **items in a thread pool**.
 
 A reader of this document sees the design conversation first — then sees each idiom appear because the protocol demanded it.
 
 ---
 
-## 2. The developer dialog (odin-itc version)
+## 2. The developer dialog (matryoshka version)
 
 **Context:**
 
@@ -221,11 +221,11 @@ Each design decision from the dialog maps to one or more idioms.
 
 ---
 
-## 7. Confirmed parallel: tofu mantra → odin-itc
+## 7. Confirmed parallel: tofu mantra → matryoshka
 
 The tofu dialog defines a **protocol** — what flows between S and R — not the internal structure of either side.
 
-| tofu concept | odin-itc concept |
+| tofu concept | matryoshka concept |
 |---|---|
 | S (Spool Server developer) | designs the Spool Master |
 | R (RIP Worker developer) | designs the Worker side |
@@ -261,7 +261,7 @@ The implementation stage will be planned separately once this document is review
 
 ## 9. Job as a first-class item
 
-A `Job` is not just a data record. It is an item in the full odin-itc sense.
+A `Job` is not just a data record. It is an item in the full matryoshka sense.
 
 - Lives in a **Pool** (owned by a Master — e.g., the Spool Master or a Job Manager Master).
 - Transferred between Masters via **Mboxes**. Ownership moves with the item.
@@ -326,7 +326,7 @@ registry_set(name: string, m: ^mbox.Mbox)
 **Why Registry, not Resolver:**
 - "Resolver" is overloaded — DNS, Promises, DI containers all use it.
 - "Registry" names both phases: `registry_set` at startup, `registry_get` at runtime.
-- No conflict with odin-itc or Odin-lang concepts.
+- No conflict with matryoshka or Odin-lang concepts.
 
 - Routing is visible in the Job.
 - Changing the route means changing the Job data, not the Masters.
@@ -363,7 +363,7 @@ All four Workers call `mbox.recv` on the same mbox. Items are distributed by arr
 
 ### Summary table
 
-| Concept | odin-itc realization |
+| Concept | matryoshka realization |
 |---|---|
 | Unit of work | `Job` item in a pool |
 | Work dispatch | `pool_get` → fill Job → `mbox_send` |

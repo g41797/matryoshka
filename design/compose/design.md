@@ -1,4 +1,4 @@
-# odin-itc — Normative Specification
+# matryoshka — Normative Specification
 
 ====================================================
 Author notes - read, analyze, ask questions, proceed
@@ -1233,7 +1233,7 @@ ptr, ok := m.?
 Safe. No panic.
 `ok` is `false` if `m == nil`. `ptr` is only valid when `ok` is `true`.
 
-From `layers/layer1/tests/hooks/hooks_test.odin`:
+From `dolls/layer1/tests/hooks/hooks_test.odin`:
 
 ```odin
 m := fp.ctor(int(ex.ItemId.Event))

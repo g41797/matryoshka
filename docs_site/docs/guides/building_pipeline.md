@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Guide the user through constructing a multi-stage processing pipeline with odin-itc.
+Guide the user through constructing a multi-stage processing pipeline with matryoshka.
 
 ## To be written
 

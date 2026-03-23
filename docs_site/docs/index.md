@@ -1,8 +1,8 @@
-# odin-itc
+# matryoshka
 
 ## Purpose
 
-Entry point for the odin-itc concurrency toolkit documentation.
+Entry point for the matryoshka concurrency toolkit documentation.
 
 ## To be written
 

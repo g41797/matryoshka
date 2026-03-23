@@ -1,6 +1,6 @@
 # Idioms Overview
 
-This section provides a quick reference for odin-itc idioms. Each idiom has a short tag for `grep`.
+This section provides a quick reference for matryoshka idioms. Each idiom has a short tag for `grep`.
 
 These are not laws. No one is forced to follow them. They are patterns that have worked. Take what helps, ignore the rest.
 
@@ -40,7 +40,7 @@ send(&mb, &m)          // m = nil on success (dispose becomes no-op)
 
 ## Building Blocks
 
-odin-itc has five object types. Every concurrent system built with this library uses them. Understanding what each one is—and why it exists—makes the idioms easier to follow.
+matryoshka has five object types. Every concurrent system built with this library uses them. Understanding what each one is—and why it exists—makes the idioms easier to follow.
 
 - **Master:** The actor. It has the logic. You define this as a pattern.
 - **Thread:** A container. It runs one Master proc and nothing else.

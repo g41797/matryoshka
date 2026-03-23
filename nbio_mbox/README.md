@@ -28,8 +28,8 @@ Msg :: struct {
 ## Quick start
 
 ```odin
-import nbio_mbox "path/to/odin-itc/nbio_mbox"
-import loop_mbox  "path/to/odin-itc/loop_mbox"
+import nbio_mbox "path/to/matryoshka/nbio_mbox"
+import loop_mbox  "path/to/matryoshka/loop_mbox"
 
 // event-loop thread:
 loop := nbio.current_thread_event_loop()

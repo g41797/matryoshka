@@ -1,4 +1,4 @@
-# odin-itc Ring Logo Prompt
+# matryoshka Ring Logo Prompt
 
 ## Concept
 

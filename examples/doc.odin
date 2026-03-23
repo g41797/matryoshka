@@ -1,5 +1,5 @@
 /*
-Package examples contains runnable demos for odin-itc.
+Package examples contains runnable demos for matryoshka.
 
 Each proc returns true on success.
 

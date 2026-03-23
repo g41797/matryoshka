@@ -1,6 +1,6 @@
-# odin-itc vs. The Actor Model
+# matryoshka vs. The Actor Model
 
-This guide compares `odin-itc` with the classic Actor Model (Erlang, Akka). 
+This guide compares `matryoshka` with the classic Actor Model (Erlang, Akka).
 Both use message passing, but they solve different problems.
 
 ---
@@ -8,7 +8,7 @@ Both use message passing, but they solve different problems.
 ## 1. The Core Philosophy
 
 *   **Actors are "Biological":** They are independent cells. You can spawn millions. They die and regrow. They are dynamic.
-*   **odin-itc is "Mechanical":** It is a high-speed engine. You build it once. It has a fixed number of cylinders (threads) and pipes (mailboxes). It is static.
+*   **matryoshka is "Mechanical":** It is a high-speed engine. You build it once. It has a fixed number of cylinders (threads) and pipes (mailboxes). It is static.
 
 ---
 
@@ -21,7 +21,7 @@ Most actor systems **copy** the data.
 3.  Both actors can work safely. No one can mess with the other's memory.
 4.  **Cost:** Copying large data is slow.
 
-### odin-itc: Ownership (Speed First)
+### matryoshka: Ownership (Speed First)
 We use **Zero-Copy Ownership**.
 1.  Master A sends an **Item** to Master B.
 2.  Master A passes the pointer and sets its own pointer to `nil`.
@@ -33,20 +33,20 @@ We use **Zero-Copy Ownership**.
 ## 3. Addressing
 
 *   **Actors use Addresses:** You send a message to "Actor #123". The system finds where that actor is (it might even be on a different computer).
-*   **odin-itc uses Mailboxes:** You send an Item to a specific `Mailbox` pointer inside a Master. It is like a physical wire connecting two components on a circuit board.
+*   **matryoshka uses Mailboxes:** You send an Item to a specific `Mailbox` pointer inside a Master. It is like a physical wire connecting two components on a circuit board.
 
 ---
 
 ## 4. Memory Management
 
 *   **Actor Model:** Usually relies on a Garbage Collector (GC). The system cleans up messages when no one is using them.
-*   **odin-itc:** Uses **Pools**. Every Item comes from a Pool and must return to a Pool. Memory is reused, not "collected." This makes performance very predictable.
+*   **matryoshka:** Uses **Pools**. Every Item comes from a Pool and must return to a Pool. Memory is reused, not "collected." This makes performance very predictable.
 
 ---
 
 ## 5. Summary Table
 
-| Feature | Actor Model | odin-itc |
+| Feature | Actor Model | matryoshka |
 | :--- | :--- | :--- |
 | **Structure** | Dynamic (Spawn/Kill) | Static (Build once) |
 | **Data** | Copying (Safe) | Ownership Move (Fast) |
@@ -63,9 +63,9 @@ We use **Zero-Copy Ownership**.
 *   You have millions of small, simple entities (e.g., users in a game).
 *   You want the system to automatically restart "dead" components.
 
-### Use odin-itc if:
+### Use matryoshka if:
 *   You are building a high-performance local engine (e.g., a media processor, a database, or a game engine).
 *   You need to move large amounts of data between threads with zero lag.
 *   You want complete control over memory and CPU usage.
 
-**In short:** Actors are for **distributed systems**. `odin-itc` is for **high-speed local hardware utilization**.
+**In short:** Actors are for **distributed systems**. `matryoshka` is for **high-speed local hardware utilization**.

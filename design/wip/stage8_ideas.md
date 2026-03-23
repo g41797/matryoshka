@@ -11,20 +11,20 @@ Raw thinking. Variants. Intents. Nothing here is a decision.
 When Stage 8 starts for real, a proper plan goes to design/stage8_plan.md.
 
 ### Larger vision
-- odin-itc = local messaging (single process, threads)
-- otofu (future) = distributed messaging (processes, network), built on odin-itc
+- matryoshka = local messaging (single process, threads)
+- otofu (future) = distributed messaging (processes, network), built on matryoshka
 - Together: position Odin as viable for boring enterprise systems, not just games
 
 ### The claim we want to make
 Odin is a real candidate for boring enterprise systems.
-The ecosystem doesn't have this yet. odin-itc + otofu together start building the case.
+The ecosystem doesn't have this yet. matryoshka + otofu together start building the case.
 
 ### Documentation narrative direction
 - Problem first, solution second. Not API first.
 - Audience: Odin developers who want to build serious non-gamedev systems
 - Show a real boring-system scenario (like spool+rip) as a dialog (like tofu's mantra.md)
 - High-level flow picture before any code
-- odin-itc components as the answer — not just a queue library
+- matryoshka components as the answer — not just a queue library
 
 ### Scenario thinking
 - Spool+rip works as the scenario — it is a boring system, that's the point
@@ -35,7 +35,7 @@ The ecosystem doesn't have this yet. odin-itc + otofu together start building th
   - What if the worker is busy — does the submitter block?
   - How does progress/status come back?
   - How do we stop without losing queued jobs?
-- These questions lead naturally to odin-itc components
+- These questions lead naturally to matryoshka components
 
 ### Odin community landscape (researched)
 - Dominant: gamedev (games, engines, EmberGen/JangaFX)
@@ -63,7 +63,7 @@ The ecosystem doesn't have this yet. odin-itc + otofu together start building th
 
 ---
 
-## Orthogonality in odin-itc (2026-03-16)
+## Orthogonality in matryoshka (2026-03-16)
 
 ### 1. WakeUper ⊥ loop_mbox
 

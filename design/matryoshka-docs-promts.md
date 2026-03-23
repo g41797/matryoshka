@@ -1,4 +1,4 @@
-# odin-itc Documentation System — AI Execution Prompts
+# matryoshka Documentation System — AI Execution Prompts
 
 This file contains **copy-paste ready prompts** for staged execution using:
 - Claude Code (structure, files, edits)
@@ -29,7 +29,7 @@ Rules:
 
 ## Prompt (copy-paste)
 
-You are working on a documentation system for a concurrency toolkit called "odin-itc".
+You are working on a documentation system for a concurrency toolkit called "matryoshka".
 
 Your task is to CREATE a mkdocs project skeleton (no real content yet).
 
@@ -103,7 +103,7 @@ Verify:
 
 ## Prompt (copy-paste)
 
-You are reviewing a documentation structure for a concurrency toolkit called "odin-itc".
+You are reviewing a documentation structure for a concurrency toolkit called "matryoshka".
 
 Here is the navigation structure and page grouping:
 
@@ -282,7 +282,7 @@ Apply:
 
 ## Prompt (copy-paste)
 
-Rewrite index.md for a concurrency toolkit called "odin-itc".
+Rewrite index.md for a concurrency toolkit called "matryoshka".
 
 Constraints:
 
@@ -320,7 +320,7 @@ Output:
 
 If you stop, resume with:
 
-"Continue odin-itc docs from STAGE X.
+"Continue matryoshka docs from STAGE X.
 Here is current mkdocs.yml and structure:
 [PASTE]"
 

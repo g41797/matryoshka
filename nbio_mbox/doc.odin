@@ -1,7 +1,7 @@
 /*
 Package nbio_mbox — concept implementation (experimental).
 
-nbio_mbox is a concept implementation showing how odin-itc can be injected into a foreign
+nbio_mbox is a concept implementation showing how matryoshka can be injected into a foreign
 event loop (core:nbio). Tests run on Linux only — the implementation is not production-ready
 and is not intended to be. For production use, wire your own wakeup via the WakeUper interface.
 

@@ -8,7 +8,7 @@ NC=$'\033[0m'
 
 OPTS=(none minimal size speed aggressive)
 
-echo "${BLUE}Starting odin-itc local CI...${NC}"
+echo "${BLUE}Starting matryoshka local CI...${NC}"
 
 if ! command -v odin >/dev/null 2>&1; then
     echo "Error: odin compiler not found in PATH"
