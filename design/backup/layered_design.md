@@ -2,6 +2,10 @@
 
 > One layer at a time. Stop when you have enough.
 
+> **This is the teaching companion.**
+> The normative specification lives in `design.md`.
+> When this file contradicts `design.md` — `design.md` wins.
+
 ---
 
 ## Document Writing Rules
@@ -274,6 +278,7 @@ Following it is on you.
 ### Ownership contract
 
 All matryoshka APIs pass items using `^Maybe(^PolyNode)`.
+This replaces separate ownership flags, reference counts, or return-value pointers.
 
 ```odin
 m: Maybe(^PolyNode)
@@ -521,6 +526,12 @@ No pool yet.
 Builder creates items.
 Builder destroys items.
 Mailbox moves them.
+
+**Thread and Master:**
+A thread is a thin container that runs exactly one Master.
+You create the thread.
+You pass the Master to it.
+From here on, you think in Masters, not threads.
 
 ---
 
@@ -973,25 +984,29 @@ for {
 
 ### Fan-Out
 
-One Master distributes work to multiple worker Masters.
-Each worker has its own mailbox.
+One Master sends.
+Multiple worker Masters receive from the same mailbox.
+Whichever worker is free picks up the next item.
 
 ```
-                        ┌──────────┐
-                   ╔═══►│Worker A  ├── inbox ◄═
-┌──────────┐       ║    │          │
-│ Master A ├── out ╠═══►└──────────┘
-│          │       ║    ┌──────────┐
-│          ├── in ◄╣═══►│Worker B  ├── inbox ◄═
-└──────────┘       ║    │          │
-                   ║    └──────────┘
-                   ║    ┌──────────┐
-                   ╚═══►│Worker C  ├── inbox ◄═
-                        │          │
-                        └──────────┘
+                      ┌──────────┐
+                 ╔════│Worker A  │
+                 ║    │          ├── inbox ◄═
+┌──────────┐     ║    └──────────┘
+│ Master A ├── out    ┌──────────┐
+│          │  ════►═══│Worker B  │
+│          ├── in ◄═  │          ├── inbox ◄═
+└──────────┘     ║    └──────────┘
+                 ║    ┌──────────┐
+                 ╚════│Worker C  │
+                      │          ├── inbox ◄═
+                      └──────────┘
+
+All workers call mbox_wait_receive on the same mailbox.
+One wakes. The others keep waiting.
 ```
 
-Master A sends to worker mailboxes — round-robin, by type, or any other rule you choose.
+No round-robin. No routing logic. The mailbox does the distribution.
 
 ### Shutdown — Exit message
 
@@ -1036,6 +1051,16 @@ for {
 ```
 
 ---
+
+### What you can build with Layer 1 + 2
+
+- Multi-threaded pipelines — read → process → write across Masters.
+- Request-response pairs — Master A asks, Master B answers.
+- Worker pools — fan-out to multiple worker Masters, fan-in results.
+- Background processing — one Master compresses, another writes.
+- Any system where items travel between threads and every item has one owner.
+
+Builder creates. Builder destroys. Mailbox moves. No pool yet.
 
 ## What you learned (Layer 2)
 
@@ -1728,6 +1753,16 @@ freeMaster(master)
 ```
 
 ---
+
+### What you can build with all three layers
+
+- Compression pipeline — chunks flow from reader Master to worker Masters and back, recycled through Pool.
+- Game engine — entities, bullets, particles allocated from Pool, dispatched across Masters, recycled on death.
+- Network server — request buffers from Pool, dispatched to handler Masters, response buffers returned to Pool.
+- Streaming processor — data flows through a chain of Masters, Pool absorbs allocation spikes.
+
+Same vocabulary at every level: get → fill → send → receive → put back.
+Only the hooks grow when you need control.
 
 ## What you learned (Layer 3)
 
