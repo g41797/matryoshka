@@ -133,27 +133,14 @@ Mailbox moves them between Masters.
 - Master A sends a request.
 - Master B receives, processes, sends response.
 
-```
-┌─────────────┐                        ┌─────────────┐
-│  Master A   │                        │  Master B   │
-│             ├── mb_resp ◄════════════┤             │
-│             │                        │             ├── mb_req ◄═
-│             ├── mb_out  ════════════►│             │
-│             │                        │             ├── mb_out
-└─────────────┘                        └─────────────┘
-
-  Master A                                Master B
-  ────────                                ────────
-  m := b.ctor(alloc, id)
-  fill request
-  mbox_send(mb_req, &m)   ══════════►  mbox_wait_receive(mb_req, &m)
-                                         process request
-                                         resp := b.ctor(alloc, resp_id)
-                                         fill response
-  mbox_wait_receive(mb_resp, &m) ◄════  mbox_send(mb_resp, &resp)
-                                         dtor(&b, &m)
-  process response
-  dtor(&b, &m)
+```mermaid
+sequenceDiagram
+    participant A as Master A
+    participant B as Master B
+    A->>B: mbox_send(mb_req) — request
+    B->>B: process request
+    B->>A: mbox_send(mb_resp) — response
+    A->>A: process response
 ```
 
 All items created by Builder.ctor.
@@ -171,10 +158,27 @@ Master blocks on `mb_main`.
 `mb_oob` carries extra data delivered alongside the interrupt.
 Master wakes, drains `mb_oob` in batch.
 
+**Topology — who sends to whom:**
+
 ```mermaid
-graph LR
-    B(Master B) -- mb_main / interrupt --> A(Master A)
-    B -- mb_oob / data --> A
+sequenceDiagram
+    participant B as Master B
+    participant A as Master A
+    B->>A: mb_oob — send data items
+    B->>A: mb_main — interrupt
+    A->>A: .Interrupted — drain mb_oob
+```
+
+**Receiver loop — what happens on each result:**
+
+```mermaid
+flowchart TD
+    W([mbox_wait_receive mb_main]) --> Ok[".Ok<br/>handle message"]
+    W --> Int[.Interrupted]
+    W --> Cl[".Closed<br/>return"]
+    Int --> D["try_receive_batch mb_oob<br/>drain batch"]
+    Ok --> W
+    D --> W
 ```
 
 ```odin
@@ -213,30 +217,15 @@ Chain of Masters.
 
 Each Master: receive → process → send forward.
 
+```mermaid
+flowchart LR
+    A[Master A] -->|mb1| B[Master B]
+    B -->|mb2| C[Master C]
 ```
-┌─────────────┐         ┌─────────────┐         ┌─────────────┐
-│  Master A   │         │  Master B   │         │  Master C   │
-│             ├── out ══┤             │         │             │
-│             │    ════►│             ├── out ══┤             │
-│             ├── in ◄═ │             │    ════►│             ├── in ◄═
-└─────────────┘         │             ├── in ◄═ └─────────────┘
-                        └─────────────┘
 
-  Master A:
-      m := b.ctor(alloc, id)
-      fill data
-      mbox_send(mb1, &m)
-
-  Master B:
-      mbox_wait_receive(mb1, &m)
-      process
-      mbox_send(mb2, &m)   // forward — no destroy, ownership transfers
-
-  Master C:
-      mbox_wait_receive(mb2, &m)
-      consume
-      dtor(&b, &m)     // final consumer destroys
-```
+- Master A: create → fill → send.
+- Master B: receive → process → forward. No destroy — ownership transfers.
+- Master C: receive → consume → destroy.
 
 ---
 
@@ -246,19 +235,12 @@ Multiple Masters send to one mailbox.
 
 One Master receives.
 
-```
-┌──────────┐
-│Master A  ├── out ═══╗
-│          ├── in  ◄═ ║    ┌──────────┐
-└──────────┘          ╠═══►│ Receiver │
-┌──────────┐          ║    │          ├── inbox ◄═
-│Master B  ├── out ═══╣    └──────────┘
-│          ├── in  ◄═ ║
-└──────────┘          ║
-┌──────────┐          ║
-│Master C  ├── out ═══╝
-│          ├── in  ◄═
-└──────────┘
+```mermaid
+flowchart LR
+    MA[Master A] -->|send| IN[(inbox)]
+    MB[Master B] -->|send| IN
+    MC[Master C] -->|send| IN
+    IN -->|receive| R[Receiver]
 ```
 
 Receiver dispatches on id:
@@ -287,25 +269,17 @@ for {
 
 ### Fan-Out
 
-                      ┌──────────┐\
-                 ╔════│Worker A  │\
-                 ║    │          ├── inbox ◄═\
-┌──────────┐     ║    └──────────┘\
-│ Master A ├── out    ┌──────────┐\
-│          │  ════►═══│Worker B  │\
-│          ├── in ◄═  │          ├── inbox ◄═\
-└──────────┘     ║    └──────────┘\
-                 ║    ┌──────────┐\
-                 ╚════│Worker C  │\
-                      │          ├── inbox ◄═\
-                      └──────────┘
+```mermaid
+flowchart LR
+    MA[Master A] -->|send| MB[(shared mailbox)]
+    WA[Worker A] -->|mbox_wait_receive| MB
+    WB[Worker B] -->|mbox_wait_receive| MB
+    WC[Worker C] -->|mbox_wait_receive| MB
+```
 
 - All workers call mbox_wait_receive on the same mailbox.
 - One Master sends.
 - One worker wakes. The others keep waiting.
-
-
-```
 
 No round-robin. No routing logic. The mailbox does the distribution.
 
@@ -318,13 +292,12 @@ Don't use thread.join.
 Master sends an Exit message to another Master's mailbox.
 That Master receives it and returns from its loop.
 
-```
-┌─────────────┐                        ┌─────────────┐\
-│ MainMaster  │                        │  Worker     │\
-│             ├── out  ════════════════►│             │\
-│             │  (Exit message)        │             ├── inbox ◄═\
-│             ├── inbox ◄═             │             │\
-└─────────────┘                        └─────────────┘\
+```mermaid
+sequenceDiagram
+    participant MM as MainMaster
+    participant W as Worker
+    MM->>W: mbox_send — Exit message
+    W->>W: receives Exit → return
 ```
 
 ```odin

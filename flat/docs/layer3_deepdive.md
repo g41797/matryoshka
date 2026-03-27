@@ -276,14 +276,10 @@ Add limits when it hurts.
 
 ### Full lifecycle with mailbox
 
-```
-┌─────────────┐                        ┌─────────────┐
-│Sender Master│                        │Recv Master  │
-│             ├── pool                 │             ├── pool
-│             ├── out  ════════════════►│             │
-│             │                        │             ├── inbox ◄═
-│             ├── inbox ◄═             │             │
-└─────────────┘                        └─────────────┘
+```mermaid
+flowchart LR
+    SM["Sender Master<br/>(pool)"] -->|send| MB[(mailbox)]
+    MB -->|receive| RM["Recv Master<br/>(pool)"]
 ```
 
 **Setup:**\

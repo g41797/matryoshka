@@ -275,6 +275,7 @@ Use only for special control flows.
 You cannot do this.\
 Do not try to use Pool's get/put for Mailboxes or Pools.\
 The Pool will treat them as a "foreign" id and panic.
+
 ---
 
 ## Master with Meta
@@ -318,13 +319,13 @@ Same for Pool.
 
 ## Full lifecycle — infrastructure move
 
-```
-┌─────────────┐                        ┌─────────────┐
-│Master A     │                        │Master B     │
-│             ├── out  ════════════════►│             │
-│             │                        │             │
-│ holds mb    │                        │ receives mb │
-└─────────────┘                        └─────────────┘
+```mermaid
+sequenceDiagram
+    participant A as Master A
+    participant B as Master B
+    A->>B: mbox_send — mailbox as payload
+    B->>B: use mailbox
+    B->>B: close → matryoshka_dispose
 ```
 
 Flow:
