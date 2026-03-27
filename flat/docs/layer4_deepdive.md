@@ -110,12 +110,12 @@ No global registry.
 
 ---
 
-## Dispose — unified teardown
+## matryoshka_dispose — unified teardown
 
 One entry point.
 
 ```odin
-dispose :: proc(m: ^Maybe(^PolyNode))
+matryoshka_dispose :: proc(m: ^Maybe(^PolyNode))
 ```
 
 Algorithm:
@@ -136,11 +136,11 @@ After success:
 
 * `m^ = nil`
 
-Dispose is final.
+matryoshka_dispose is final.
 
 ---
 
-## Why closed-only dispose?
+## Why closed-only matryoshka_dispose?
 
 Open infrastructure still has state.
 
@@ -204,7 +204,7 @@ Master A sends it to Master B.
 m: Maybe(^PolyNode)
 m^ = (^PolyNode)(mb)
 
-if mbox_send(&out, &m) != .Ok {
+if mbox_send(out, &m) != .Ok {
     return
 }
 // m^ == nil
@@ -215,7 +215,7 @@ if mbox_send(&out, &m) != .Ok {
 ```odin
 m: Maybe(^PolyNode)
 
-if mbox_wait_receive(&in, &m) != .Ok {
+if mbox_wait_receive(in, &m) != .Ok {
     return
 }
 
@@ -292,24 +292,25 @@ Teardown is unified.
 
 ---
 
-## Teardown with dispose
+## Teardown with matryoshka_dispose
 
 Instead of custom destroy:
 
 * close mailbox
 * wrap into `Maybe`
-* call `dispose`
+* call matryoshka_dispose
 
 Example:
 
 ```odin
 m: Maybe(^PolyNode) = (^PolyNode)(mb)
 
-remaining := mbox_close(&mb)
+remaining := mbox_close(mb)
 // drain remaining first
 
-dispose(&m)
+matryoshka_dispose(&m)
 ```
+
 
 Same for Pool.
 
@@ -333,7 +334,7 @@ Flow:
 * receive mailbox
 * use mailbox
 * close mailbox
-* dispose mailbox
+* matryoshka_dispose mailbox
 
 Same pattern as data.
 

@@ -80,7 +80,7 @@ Recycler (Layer 3):  on_get + on_put + ctx + ids
 PoolHooks :: struct {
     ctx:    rawptr,         // user context — carries master or any state
                             // may be nil — pool passes it as-is
-    ids:    [dynamic]int,   // user-owned; non-empty, all != 0; user deletes in freeMaster
+    ids:    [dynamic]int,   // user-owned; non-empty, all > 0; user deletes in freeMaster
     on_get: proc(ctx: rawptr, id: int, in_pool_count: int, m: ^Maybe(^PolyNode)),
     on_put: proc(ctx: rawptr, in_pool_count: int, m: ^Maybe(^PolyNode)),
 }
@@ -161,9 +161,7 @@ All lifecycle decisions live in `PoolHooks`.
 ### Types
 
 ```odin
-Pool :: struct {
-    ...............
-}
+Pool :: distinct ^PolyNode
 
 Pool_Get_Mode :: enum {
     Available_Or_New,  // existing item if available, otherwise create
@@ -180,11 +178,13 @@ Pool_Get_Result :: enum {
 }
 ```
 
-### Init / Close
+### New / Init / Close
 
 ```odin
-pool_init  :: proc(p: ^Pool, hooks: ^PoolHooks)
-pool_close :: proc(p: ^Pool) -> (list.List, ^PoolHooks)
+pool_new           :: proc(alloc: mem.Allocator) -> Pool
+pool_init          :: proc(p: Pool, hooks: ^PoolHooks)
+pool_close         :: proc(p: Pool) -> (list.List, ^PoolHooks)
+matryoshka_dispose :: proc(m: ^Maybe(^PolyNode))
 ```
 
 `pool_init`:
@@ -194,8 +194,7 @@ pool_close :: proc(p: ^Pool) -> (list.List, ^PoolHooks)
 
 `pool_close` contract:
 
-```odin
-nodes, h := pool_close(&p)
+nodes, h := pool_close(p)
 ```
 
 - Returns all items currently stored in the pool as `list.List`.
@@ -207,7 +206,7 @@ nodes, h := pool_close(&p)
 ### get — acquire ownership
 
 ```odin
-pool_get :: proc(p: ^Pool, id: int, mode: Pool_Get_Mode, m: ^Maybe(^PolyNode)) -> Pool_Get_Result
+pool_get :: proc(p: Pool, id: int, mode: Pool_Get_Mode, m: ^Maybe(^PolyNode)) -> Pool_Get_Result
 ```
 
 | Mode | Behavior |
@@ -239,7 +238,7 @@ Both `pool_get` and `pool_get_wait` apply the same entry checks:
 ### get_wait — block until item available
 
 ```odin
-pool_get_wait :: proc(p: ^Pool, id: int, m: ^Maybe(^PolyNode), timeout: time.Duration) -> Pool_Get_Result
+pool_get_wait :: proc(p: Pool, id: int, m: ^Maybe(^PolyNode), timeout: time.Duration) -> Pool_Get_Result
 ```
 
 Equivalent to `pool_get(.Available_Only)` but with blocking.
@@ -264,7 +263,7 @@ If `pool_close` is called while a Master is waiting, all waiters wake and receiv
 ### put — return to pool
 
 ```odin
-pool_put :: proc(p: ^Pool, m: ^Maybe(^PolyNode))
+pool_put :: proc(p: Pool, m: ^Maybe(^PolyNode))
 ```
 
 Algorithm — in this order:
@@ -291,8 +290,8 @@ This means `defer pool_put` can be placed immediately after `m: Maybe(^PolyNode)
 
 ```odin
 m: Maybe(^PolyNode)
-defer pool_put(&p, &m)  // [itc: defer-put-early] — safe: pool_put is no-op when m^ == nil
-if pool_get(&p, id, .Available_Or_New, &m) != .Ok {
+defer pool_put(p, &m)  // [itc: defer-put-early] — safe: pool_put is no-op when m^ == nil
+if pool_get(p, id, .Available_Or_New, &m) != .Ok {
     return
 }
 // ... work ...
@@ -311,7 +310,7 @@ The panic is the correct behavior — it tells you exactly where the bug is.
 ### put_all — return a chain
 
 ```odin
-pool_put_all :: proc(p: ^Pool, m: ^Maybe(^PolyNode))
+pool_put_all :: proc(p: Pool, m: ^Maybe(^PolyNode))
 ```
 
 Walks the linked list starting at `m^`, calling `pool_put` on each node.

@@ -29,6 +29,7 @@ You go deeper only when the next doll solves a real problem you have today.
 | 1 | `PolyNode` + `Maybe` + `Builder` | mailbox, pool |
 | 2 | + Mailbox + Master | pool |
 | 3 | + Pool + Recycler | — full matryoshka |
+| 4 | + Meta (Infra as Items) | — |
 
 **The rule:** move to the next layer because you need it — not because it is there.
 
@@ -73,6 +74,11 @@ Each layer has a **Quick Reference** (API signatures, contracts, tables) and a *
 
 - [Quick Reference](layer3_quickref.md) — Pool API, modes, results, PoolHooks contracts, ID rules
 - [Deep Dive](layer3_deepdive.md) — hook examples, backpressure, full lifecycle, Master with Pool
+
+### Layer 4 — Meta — Infrastructure as Items
+
+- [Quick Reference](layer4_quickref.md) — handle definitions, matryoshka_dispose signature, unified creation
+- [Deep Dive](layer4_deepdive.md) — dynamic topology, self-send patterns, teardown unification
 
 ---
 

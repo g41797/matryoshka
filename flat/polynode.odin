@@ -5,8 +5,11 @@ package matryoshka
 
 import list "core:container/intrusive/list"
 
+//////////////////////////////
+MayPolyPtr :: Maybe(^PolyNode)
+//////////////////////////////
 
-// PolyNode is the intrusive node embedded at offset 0 in every itc item.
+// PolyNode is the intrusive node embedded at offset 0 in every matryoshka item.
 //
 // Embed via `using` at the first field:
 //
@@ -18,7 +21,7 @@ import list "core:container/intrusive/list"
 //
 // With `using`, field access is promoted: chunk.id == chunk.poly.id.
 // The cast (^Chunk)(node) is valid only when PolyNode is at offset 0.
-// itc has no compile-time check for this — enforced by convention.
+// matryoshka has no compile-time check for this — enforced by convention.
 //
 // id rules:
 //   - Must be != 0 after creation.
@@ -40,5 +43,3 @@ PolyNode :: struct {
 	using node: list.Node, // intrusive link — .prev, .next
 	id:         int, // type discriminator, must be != 0
 }
-
-

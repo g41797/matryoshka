@@ -16,7 +16,9 @@ PolyNode :: struct {
     using node: list.Node,
     id:         int, // must be != 0
 }
-```
+````
+
+All items — user data and infrastructure — embed this first.
 
 ---
 
@@ -40,7 +42,7 @@ One field.
 Two ranges.
 
 ```odin
-// Convention only
+// Convention
 id == 0   → invalid
 id > 0    → user data
 id < 0    → infrastructure
@@ -67,23 +69,16 @@ No central factory.
 Create directly.
 Dispose through one entry.
 
+All infrastructure items store their allocator internally.
+
 ---
 
 ### Creation
 
-Mailbox:
-
 ```odin
 mbox_new :: proc(alloc: mem.Allocator) -> Mailbox
-```
-
-Pool:
-
-```odin
 pool_new :: proc(alloc: mem.Allocator) -> Pool
 ```
-
-Each item stores its allocator internally.
 
 ---
 
@@ -119,7 +114,7 @@ Exit:
 
 ## Mailbox API
 
-Moves ownership between Masters.
+Moves ownership between threads.
 
 ---
 
@@ -134,7 +129,22 @@ Mailbox :: distinct ^PolyNode
 ### Operations
 
 ```odin
+SendResult :: enum {
+    Ok,
+    Closed,
+    Invalid,
+}
+
 mbox_send :: proc(mb: Mailbox, m: ^Maybe(^PolyNode)) -> SendResult
+
+RecvResult :: enum {
+    Ok,
+    Closed,
+    Interrupted,
+    Already_In_Use,
+    Invalid,
+    Timeout,
+}
 
 mbox_wait_receive :: proc(
     mb: Mailbox,
@@ -142,10 +152,20 @@ mbox_wait_receive :: proc(
     timeout: time.Duration = -1,
 ) -> RecvResult
 
+IntrResult :: enum {
+    Ok,
+    Closed,
+    Already_Interrupted,
+}
+
 mbox_interrupt :: proc(mb: Mailbox) -> IntrResult
 
+// Marks mailbox closed.
+// Wakes all waiters.
+// Returns remaining items. Caller must drain.
 mbox_close :: proc(mb: Mailbox) -> list.List
 
+// Non-blocking drain of currently available items.
 try_receive_batch :: proc(mb: Mailbox) -> list.List
 ```
 
@@ -206,6 +226,20 @@ Hooks must outlive the pool.
 ```odin
 pool_close :: proc(p: Pool) -> (list.List, ^PoolHooks)
 
+Pool_Get_Mode :: enum {
+    Available_Or_New,  // use stored item or create
+    New_Only,          // always create
+    Available_Only,    // stored only — no creation
+}
+
+Pool_Get_Result :: enum {
+    Ok,             // item returned in m^
+    Not_Available,  // Available_Only: nothing stored
+    Not_Created,    // on_get returned nil
+    Closed,         // pool is closed
+    Already_In_Use, // m^ != nil on entry
+}
+
 pool_get :: proc(
     p: Pool,
     id: int,
@@ -213,6 +247,8 @@ pool_get :: proc(
     m: ^Maybe(^PolyNode),
 ) -> Pool_Get_Result
 
+// Wait for stored item only.
+// Does not call on_get.
 pool_get_wait :: proc(
     p: Pool,
     id: int,
@@ -220,8 +256,11 @@ pool_get_wait :: proc(
     timeout: time.Duration,
 ) -> Pool_Get_Result
 
+// Return item to pool.
+// Calls on_put.
 pool_put :: proc(p: Pool, m: ^Maybe(^PolyNode))
 
+// Return chain of items.
 pool_put_all :: proc(p: Pool, m: ^Maybe(^PolyNode))
 ```
 
@@ -291,8 +330,3 @@ on_put:
 * One teardown → `matryoshka_dispose`
 
 Everything follows the same rules.
-
-But not everything behaves the same.
-
-Data is cheap.
-Infrastructure is not.

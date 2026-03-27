@@ -112,7 +112,7 @@ No global factory.
 ## Dispose — self-destroy
 
 ```odin
-dispose :: proc(m: ^Maybe(^PolyNode))
+matryoshka_dispose :: proc(m: ^Maybe(^PolyNode))
 ```
 
 Algorithm:
@@ -133,6 +133,7 @@ After success:
 * `m^ = nil`
 
 You can only dispose closed items.
+
 
 ---
 
@@ -162,7 +163,7 @@ Same idea.
 
 * Can be sent
 * Can be owned
-* Can be disposed
+* Can be matryoshka_disposed
 
 No special path.
 

@@ -106,7 +106,8 @@ FlowId :: enum int {
 // Registration: populate hooks.ids before pool_init
 append(&hooks.ids, int(FlowId.Chunk))
 append(&hooks.ids, int(FlowId.Progress))
-pool_init(&p, &hooks)
+p := pool_new(alloc)
+pool_init(p, &hooks)
 ```
 
 ---
@@ -138,14 +139,16 @@ newMaster :: proc(alloc: mem.Allocator) -> ^Master {
     }
     append(&m.hooks.ids, int(FlowId.Chunk))
     append(&m.hooks.ids, int(FlowId.Progress))
-    pool_init(&m.pool, &m.hooks)
-    mbox_init(&m.inbox)
+    
+    m.pool = pool_new(alloc)
+    pool_init(m.pool, &m.hooks)
+    m.inbox = mbox_new(alloc)
     return m
 }
 
 freeMaster :: proc(master: ^Master) {
     // 1. close pool — get back stored items
-    nodes, _ := pool_close(&master.pool)
+    nodes, _ := pool_close(master.pool)
 
     // 2. drain and dispose all returned items
     // NOTE: dispose nodes before freeing other Master resources.
@@ -154,16 +157,23 @@ freeMaster :: proc(master: ^Master) {
         if raw == nil { break }
         // dispose node — master knows how
     }
+    
+    // 3. teardown pool
+    m_pool: Maybe(^PolyNode) = (^PolyNode)(master.pool)
+    matryoshka_dispose(&m_pool)
 
-    // 3. close and drain mailbox
-    remaining := mbox_close(&master.inbox)
+    // 4. close and drain mailbox
+    remaining := mbox_close(master.inbox)
     // drain remaining...
-    mbox_destroy(&master.inbox)
+    
+    // 5. teardown mailbox
+    m_mb: Maybe(^PolyNode) = (^PolyNode)(master.inbox)
+    matryoshka_dispose(&m_mb)
 
-    // 4. delete ids dynamic array (user-owned)
+    // 6. delete ids dynamic array (user-owned)
     delete(master.hooks.ids)
 
-    // 5. free Master last — save alloc first
+    // 7. free Master last — save alloc first
     alloc := master.alloc
     free(master, alloc)
 }
@@ -183,8 +193,8 @@ master := newMaster(context.allocator)
 
 for _ in 0..<100 {
     m: Maybe(^PolyNode)
-    if pool_get(&master.pool, int(FlowId.Chunk), .New_Only, &m) == .Ok {
-        pool_put(&master.pool, &m)  // put back immediately — goes to free-list
+    if pool_get(master.pool, int(FlowId.Chunk), .New_Only, &m) == .Ok {
+        pool_put(master.pool, &m)  // put back immediately — goes to free-list
     }
 }
 ```
@@ -200,14 +210,14 @@ Not a pool-wide setting.
 
 ```odin
 // Normal operation — use stored item if available, create if not
-pool_get(&master.pool, int(FlowId.Chunk), .Available_Or_New, &m)
+pool_get(master.pool, int(FlowId.Chunk), .Available_Or_New, &m)
 
 // Force creation — use for seeding or when you want a guaranteed fresh item
-pool_get(&master.pool, int(FlowId.Chunk), .New_Only, &m)
+pool_get(master.pool, int(FlowId.Chunk), .New_Only, &m)
 
 // Stored only — use in no-alloc paths
 // Returns .Not_Available if no item stored — on_get not called
-if pool_get(&master.pool, int(FlowId.Chunk), .Available_Only, &m) != .Ok {
+if pool_get(master.pool, int(FlowId.Chunk), .Available_Only, &m) != .Ok {
     // no item stored — handle: skip, back off, or call pool_get_wait
 }
 ```
@@ -225,18 +235,18 @@ Layer 2 sender:
 ```odin
 m := b.ctor(b.alloc, int(FlowId.Chunk))
 // fill
-mbox_send(&mb, &m)
+mbox_send(mb, &m)
 ```
 
 Layer 3 sender:
 ```odin
 m: Maybe(^PolyNode)
-defer pool_put(&p, &m)  // [itc: defer-put-early]
-if pool_get(&p, int(FlowId.Chunk), .Available_Or_New, &m) != .Ok {
+defer pool_put(p, &m)  // [itc: defer-put-early]
+if pool_get(p, int(FlowId.Chunk), .Available_Or_New, &m) != .Ok {
     return
 }
 // fill
-mbox_send(&mb, &m)
+mbox_send(mb, &m)
 // m^ is nil after send — defer pool_put is a no-op
 ```
 
@@ -283,9 +293,9 @@ defer freeMaster(master)
 **Sender Master:**
 ```odin
 m: Maybe(^PolyNode)
-defer pool_put(&master.pool, &m)  // [itc: defer-put-early]
+defer pool_put(master.pool, &m)  // [itc: defer-put-early]
 
-if pool_get(&master.pool, int(FlowId.Chunk), .Available_Or_New, &m) != .Ok {
+if pool_get(master.pool, int(FlowId.Chunk), .Available_Or_New, &m) != .Ok {
     return
 }
 
@@ -296,7 +306,7 @@ c := (^Chunk)(ptr)
 c.len = fill(c.data[:])
 
 // transfer
-if mbox_send(&mb, &m) != .Ok {
+if mbox_send(mb, &m) != .Ok {
     return  // send failed — defer pool_put recycles
 }
 // m^ is nil — transfer done — defer pool_put is a no-op
@@ -305,9 +315,9 @@ if mbox_send(&mb, &m) != .Ok {
 **Receiver Master:**
 ```odin
 m: Maybe(^PolyNode)
-defer pool_put(&master.pool, &m)  // safety net
+defer pool_put(master.pool, &m)  // safety net
 
-if mbox_wait_receive(&mb, &m) != .Ok {
+if mbox_wait_receive(mb, &m) != .Ok {
     return
 }
 
@@ -318,12 +328,12 @@ switch FlowId(ptr.id) {
 case .Chunk:
     c := (^Chunk)(ptr)
     process_chunk(c)
-    pool_put(&master.pool, &m)    // explicit return — defer is no-op
+    pool_put(master.pool, &m)    // explicit return — defer is no-op
 
 case .Progress:
     pr := (^Progress)(ptr)
     update_progress(pr)
-    pool_put(&master.pool, &m)    // explicit return — defer is no-op
+    pool_put(master.pool, &m)    // explicit return — defer is no-op
 }
 ```
 
@@ -336,14 +346,14 @@ case .Progress:
 
 **Shutdown:**
 ```odin
-remaining := mbox_close(&mb)
+remaining := mbox_close(mb)
 
 for {
     raw := list.pop_front(&remaining)
     if raw == nil { break }
     poly := (^PolyNode)(raw)
     m: Maybe(^PolyNode) = poly
-    pool_put(&master.pool, &m)
+    pool_put(master.pool, &m)
     if m^ != nil {
         // pool was already closed — dispose manually
     }

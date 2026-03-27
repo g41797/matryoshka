@@ -52,9 +52,7 @@ It releases ownership to the receiver on success.
 ### Types
 
 ```odin
-Mailbox :: struct {
-    ...............
-}
+Mailbox :: distinct ^PolyNode
 
 SendResult :: enum {
     Ok,
@@ -78,11 +76,11 @@ IntrResult :: enum {
 }
 ```
 
-### Init / Destroy
+### New / Dispose
 
 ```odin
-mbox_init    :: proc(mb: ^Mailbox)
-mbox_destroy :: proc(mb: ^Mailbox)
+mbox_new           :: proc(alloc: mem.Allocator) -> Mailbox
+matryoshka_dispose :: proc(m: ^Maybe(^PolyNode))
 ```
 
 ---
@@ -90,7 +88,7 @@ mbox_destroy :: proc(mb: ^Mailbox)
 ## send — blocking, ownership transfer
 
 ```odin
-mbox_send :: proc(mb: ^Mailbox, m: ^Maybe(^PolyNode)) -> SendResult
+mbox_send :: proc(mb: Mailbox, m: ^Maybe(^PolyNode)) -> SendResult
 ```
 
 Entry contract:
@@ -118,7 +116,7 @@ Dispose or retry.
 ## wait_receive — blocking receive, with timeout
 
 ```odin
-mbox_wait_receive :: proc(mb: ^Mailbox, out: ^Maybe(^PolyNode), timeout: time.Duration = -1) -> RecvResult
+mbox_wait_receive :: proc(mb: Mailbox, out: ^Maybe(^PolyNode), timeout: time.Duration = -1) -> RecvResult
 ```
 
 `timeout` values:
@@ -150,7 +148,7 @@ Do not proceed.
 ## interrupt — wake without data
 
 ```odin
-mbox_interrupt :: proc(mb: ^Mailbox) -> IntrResult
+mbox_interrupt :: proc(mb: Mailbox) -> IntrResult
 ```
 
 Wakes one Master waiting in `mbox_wait_receive`.
@@ -175,7 +173,7 @@ Use a shared atomic or channel to communicate *what* changed.
 ## close — orderly shutdown
 
 ```odin
-mbox_close :: proc(mb: ^Mailbox) -> list.List
+mbox_close :: proc(mb: Mailbox) -> list.List
 ```
 
 - Marks mailbox as closed.
@@ -191,7 +189,7 @@ mbox_close :: proc(mb: ^Mailbox) -> list.List
 ## try_receive_batch — non-blocking batch drain
 
 ```odin
-try_receive_batch :: proc(mb: ^Mailbox) -> list.List
+try_receive_batch :: proc(mb: Mailbox) -> list.List
 ```
 
 - Non-blocking — never waits.

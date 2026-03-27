@@ -11,7 +11,7 @@
 ```odin
 for {
     m: Maybe(^PolyNode)
-    switch mbox_wait_receive(&mb, &m) {
+    switch mbox_wait_receive(mb, &m) {
     case .Ok:
         // process item
         b.dtor(b.alloc, &m)
@@ -46,7 +46,7 @@ Cast each `^list.Node` to `^PolyNode`.
 Dispose:
 
 ```odin
-remaining := mbox_close(&mb)
+remaining := mbox_close(mb)
 
 for {
     raw := list.pop_front(&remaining)
@@ -68,7 +68,7 @@ Shutdown is part of normal flow.
 ## try_receive_batch — processing example
 
 ```odin
-batch := try_receive_batch(&mb)
+batch := try_receive_batch(mb)
 for {
     raw := list.pop_front(&batch)
     if raw == nil { break }
@@ -88,14 +88,18 @@ newMaster :: proc(alloc: mem.Allocator) -> ^Master {
     m := new(Master, alloc)
     m.alloc = alloc
     m.builder = make_builder(alloc)
-    mbox_init(&m.inbox)
+    m.inbox = mbox_new(alloc)
     return m
 }
 
 freeMaster :: proc(master: ^Master) {
-    remaining := mbox_close(&master.inbox)
+    remaining := mbox_close(master.inbox)
     // drain remaining items...
-    mbox_destroy(&master.inbox)
+    
+    // teardown mailbox
+    m_mb: Maybe(^PolyNode) = (^PolyNode)(master.inbox)
+    matryoshka_dispose(&m_mb)
+    
     alloc := master.alloc
     free(master, alloc)
 }
@@ -137,11 +141,11 @@ Master B receives, processes, sends response.
   ────────                                ────────
   m := b.ctor(alloc, id)
   fill request
-  mbox_send(&mb_req, &m)   ══════════►  mbox_wait_receive(&mb_req, &m)
+  mbox_send(mb_req, &m)   ══════════►  mbox_wait_receive(mb_req, &m)
                                          process request
                                          resp := b.ctor(alloc, resp_id)
                                          fill response
-  mbox_wait_receive(&mb_resp, &m) ◄════  mbox_send(&mb_resp, &resp)
+  mbox_wait_receive(mb_resp, &m) ◄════  mbox_send(mb_resp, &resp)
                                          b.dtor(alloc, &m)
   process response
   b.dtor(alloc, &m)
@@ -170,13 +174,13 @@ Master wakes, drains the data mailbox in batch.
 ```odin
 for {
     m: Maybe(^PolyNode)
-    switch mbox_wait_receive(&mb_ctrl, &m) {
+    switch mbox_wait_receive(mb_ctrl, &m) {
     case .Ok:
         // handle control message
         b.dtor(b.alloc, &m)
     case .Interrupted:
         // woken — interrupted flag already cleared by try_receive_batch
-        batch := try_receive_batch(&mb_data)
+        batch := try_receive_batch(mb_data)
         for {
             raw := list.pop_front(&batch)
             if raw == nil { break }
@@ -210,15 +214,15 @@ Each Master: receive → process → send forward.
   Master A:
       m := b.ctor(alloc, id)
       fill data
-      mbox_send(&mb1, &m)
+      mbox_send(mb1, &m)
 
   Master B:
-      mbox_wait_receive(&mb1, &m)
+      mbox_wait_receive(mb1, &m)
       process
-      mbox_send(&mb2, &m)   // forward — no destroy, ownership transfers
+      mbox_send(mb2, &m)   // forward — no destroy, ownership transfers
 
   Master C:
-      mbox_wait_receive(&mb2, &m)
+      mbox_wait_receive(mb2, &m)
       consume
       b.dtor(alloc, &m)     // final consumer destroys
 ```
@@ -250,7 +254,7 @@ Receiver dispatches on id:
 ```odin
 for {
     m: Maybe(^PolyNode)
-    switch mbox_wait_receive(&mb, &m) {
+    switch mbox_wait_receive(mb, &m) {
     case .Ok:
         ptr, ok := m.?
         if !ok { continue }
@@ -318,12 +322,12 @@ That Master receives it and returns from its loop.
 ExitId :: enum int { Exit = 99 }
 
 m := b.ctor(b.alloc, int(ExitId.Exit))
-mbox_send(&worker.inbox, &m)
+mbox_send(worker.inbox, &m)
 
 // Worker receives
 for {
     m: Maybe(^PolyNode)
-    switch mbox_wait_receive(&worker.inbox, &m) {
+    switch mbox_wait_receive(worker.inbox, &m) {
     case .Ok:
         ptr, ok := m.?
         if !ok { continue }

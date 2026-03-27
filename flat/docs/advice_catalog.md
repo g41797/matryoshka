@@ -37,8 +37,8 @@ Tag rule: `[itc: tag]` only if it references matryoshka API. No tag for generic 
 |---|---|---|
 | `heap-master` | Heap-allocated master | `new(Master)` — threads hold `^Master`. Stack master = dangling pointers. |
 | `thread-container` | Thread is a container | Thread proc casts `rawptr` to `^Master`, calls run. No ITC locals on stack. |
-| `mbox-close-drain` | Drain after mbox_close | `mbox_close` returns remaining list. Walk it, dispose each node. Never discard. |
-| `defer-destroy` | Defer mbox/pool destroy | `defer mbox_destroy(&mb)` right after init. Cleanup on all paths. |
+| `mbox-close-drain` | Drain after mbox_close | `mbox_close` returns remaining list. Walk it, matryoshka_dispose each node. Never discard. |
+| `defer-dispose` | Defer mbox/pool dispose | `defer matryoshka_dispose(&m_mb)` right after new. Cleanup on all paths. |
 | `send-transfer` | Send = ownership transfer | After `mbox_send` success, `m^ == nil`. Do not touch. Deferred cleanup becomes no-op. |
 
 ## Layer 3 — Pool + Hooks
@@ -74,7 +74,7 @@ Tag rule: `[itc: tag]` only if it references matryoshka API. No tag for generic 
 | `heap-master` | no | no | no |
 | `thread-container` | no | no | no |
 | `mbox-close-drain` | no | no | no |
-| `defer-destroy` | no | no | no |
+| `defer-dispose` | no | no | no |
 | `send-transfer` | no | no | no |
 | `defer-put` | no | no | no |
 | `on-get-hygiene` | no | no | no |

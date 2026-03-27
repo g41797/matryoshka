@@ -302,7 +302,7 @@ Not serious. But not random either.
 
 - "*?*M" — opened my eyes. Predecessor of `Maybe(^PolyNode)`.
 - [mailbox](https://github.com/g41797/mailbox) — this project started as a port of mailbox to Odin.
-- [tofu](https://github.com/g41797/tofu) — where these ideas were first tested.
+- [tofu](https://github.com/g41797/tofu) — where these ideas began.
 
 ---
 
