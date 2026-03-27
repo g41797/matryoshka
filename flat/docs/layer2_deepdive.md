@@ -41,9 +41,9 @@ Key points:
 
 ## Close — drain example
 
-Walk via `list.pop_front`.
-Cast each `^list.Node` to `^PolyNode`.
-Dispose:
+- Walk via `list.pop_front`.
+- Cast each `^list.Node` to `^PolyNode`.
+- Dispose:
 
 ```odin
 remaining := mbox_close(mb)
@@ -95,38 +95,43 @@ newMaster :: proc(alloc: mem.Allocator) -> ^Master {
 freeMaster :: proc(master: ^Master) {
     remaining := mbox_close(master.inbox)
     // drain remaining items...
-    
+
     // teardown mailbox
     m_mb: Maybe(^PolyNode) = (^PolyNode)(master.inbox)
     matryoshka_dispose(&m_mb)
-    
+
     alloc := master.alloc
     free(master, alloc)
 }
 ```
 
 `freeMaster` owns the full teardown.
+
 Nothing outside it should call `free` on `^Master` directly.
 
 ---
 
 ## Patterns
 
-Master runs on a thread.
-From here on, you think in Masters, not threads.
+- Master runs on a thread.
+- From here on, you think in Masters, not threads.
 
 No pool yet.
-Builder creates items.
-Builder destroys items.
+
+Builder
+- creates items.
+- destroys items.
+
 Mailbox moves them between Masters.
 
 ---
 
 ### Request-Response
 
-Two Masters. Two mailboxes each.
-Master A sends a request.
-Master B receives, processes, sends response.
+- Two Masters.
+- Two mailboxes each.
+- Master A sends a request.
+- Master B receives, processes, sends response.
 
 ```
 ┌─────────────┐                        ┌─────────────┐
@@ -152,6 +157,7 @@ Master B receives, processes, sends response.
 ```
 
 All items created by Builder.ctor.
+
 All items destroyed by Builder.dtor.
 
 ---
@@ -159,7 +165,9 @@ All items destroyed by Builder.dtor.
 ### Two-mailbox interrupt + batch
 
 Master blocks on a control mailbox.
+
 Another Master interrupts it when data is ready on a second mailbox.
+
 Master wakes, drains the data mailbox in batch.
 
 ```
@@ -200,6 +208,7 @@ for {
 ### Pipeline
 
 Chain of Masters.
+
 Each Master: receive → process → send forward.
 
 ```
@@ -232,6 +241,7 @@ Each Master: receive → process → send forward.
 ### Fan-In
 
 Multiple Masters send to one mailbox.
+
 One Master receives.
 
 ```
@@ -275,11 +285,6 @@ for {
 
 ### Fan-Out
 
-One Master sends.
-Multiple worker Masters receive from the same mailbox.
-Whichever worker is free picks up the next item.
-
-```
                       ┌──────────┐
                  ╔════│Worker A  │
                  ║    │          ├── inbox ◄═
@@ -293,8 +298,9 @@ Whichever worker is free picks up the next item.
                       │          ├── inbox ◄═
                       └──────────┘
 
-All workers call mbox_wait_receive on the same mailbox.
-One wakes. The others keep waiting.
+- All workers call mbox_wait_receive on the same mailbox.
+- One Master sends.
+- One worker wakes. The others keep waiting.
 ```
 
 No round-robin. No routing logic. The mailbox does the distribution.
@@ -354,7 +360,10 @@ for {
 - Background processing — one Master compresses, another writes.
 - Any system where items travel between threads and every item has one owner.
 
-Builder creates. Builder destroys. Mailbox moves. No pool yet.
-t.
- pool yet.
-t.
+Builder creates.
+
+Builder destroys.
+
+Mailbox moves.
+
+No pool yet.

@@ -34,10 +34,10 @@ It needs policy.
 
 ## THE FIRST RULE OF POOL
 
-Pool has many conditions, results, and rules.
-That is not a bug — it is the point.
-Pool tries to catch wrong combinations early — before they become silent failures.
-Pool is strong. Pool saves lives. *(We are serious about the first part.)*
+- Pool has many conditions, results, and rules.
+- That is not a bug — it is the point.
+- Pool tries to catch wrong combinations early — before they become silent failures.
+- Pool is strong. Pool saves lives. *(We are serious about the first part.)*
 
 **The rule:** check the result of every API call.
 

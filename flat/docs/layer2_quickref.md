@@ -11,9 +11,10 @@ You get:
 - A mailbox that moves ownership between Masters.
 - A Master that ties it all together.
 
-No pool yet.
-Builder creates items.
-Builder destroys items.
+No pool yet:
+- Builder creates items.
+- Builder destroys items.
+
 Mailbox moves them.
 
 ---
@@ -21,13 +22,17 @@ Mailbox moves them.
 ## Thread and Master
 
 A thread is a thin container that runs exactly one Master.
-You create the thread.
-You pass the Master to it.
+
+You
+- create the thread.
+- pass the Master to it.
+
 From here on, you think in Masters, not threads.
 
-Master owns the pools and mailboxes that belong to its domain.
-Master lives on the heap.
-It is the unit of work in matryoshka.
+Master
+- owns the pools and mailboxes that belong to its domain.
+- lives on the heap.
+- is the unit of work in matryoshka.
 
 ```odin
 // Thread proc
@@ -41,12 +46,14 @@ run :: proc(arg: rawptr) {
 
 ## Mailbox — move items between Masters
 
-Mailbox moves `^PolyNode` from one Master to another.
-Does not know your types.
-Blocking, with optional timeout.
-Supports interrupt and close.
+Mailbox
+- moves `^PolyNode` from one Master to another.
+- does not know your types.
+- blocking, with optional timeout.
+- supports interrupt and close.
 
 Mailbox holds ownership during transit.
+
 It releases ownership to the receiver on success.
 
 ### Types
@@ -142,7 +149,9 @@ Result:
 | `.Closed`, `.Interrupted`, `.Timeout`, `.Invalid` | unchanged — caller owns nothing |
 
 **Always check the return value.**
+
 On non-Ok, `out^` is unchanged (nil).
+
 Do not proceed.
 
 ---
@@ -168,7 +177,11 @@ The interrupted flag is **self-clearing**:
 
 Not every signal carries data.
 Interrupt says "go look".
-Use a shared atomic or channel to communicate *what* changed.
+
+Think how to communicate *what* changed, this decision is up to you.
+
+One of the possible solutions - to use _second mailbox_ for
+transferring "out-of-band" information.
 
 ---
 
@@ -202,18 +215,18 @@ try_receive_batch :: proc(mb: Mailbox) -> list.List
 
 **What the list contains:**
 
-`list.List` is a chain of `^list.Node` — intrusive links, not `^Maybe(^PolyNode)`.
-Each node is a `PolyNode`.
-`PolyNode` embeds `list.Node` via `using` at offset 0.
-Wrap each item in `Maybe` at the processing boundary.
+- `list.List` is a chain of `^list.Node` — intrusive links, not `^Maybe(^PolyNode)`.
+- Each node is a `PolyNode`.
+-`PolyNode` embeds `list.Node` via `using` at offset 0.
+- Wrap each item in `Maybe` at the processing boundary.
 
 ---
 
 ## Master — runs on a thread, owns everything
 
-Master is a user struct.
-It runs on a thread.
-It is the only participant that knows concrete types.
+- Master is a user struct.
+- It runs on a thread.
+- It is the only participant that knows concrete types.
 
 Master holds:
 - Builder (from Layer 1).
@@ -232,6 +245,7 @@ Master :: struct {
 ```
 
 Every Master has at least one mailbox.
+
 That is how other Masters talk to it.
 
 ```
@@ -249,10 +263,10 @@ That is how other Masters talk to it.
 - Absence is also a state — timeout, interrupt.
 - Not every signal carries data.
 - Shutdown is part of normal flow.
-- Think in Masters, not threads.
-- Master sends Exit, not thread.join.
 - Builder handles the lifecycle — no pool needed yet.
-- You make mistakes.
-- You send twice. You forget to clean up. You use wrong id.
-- It fails. Not silently. You see it. You fix it.
-- Master is yours. Your code, your logic. Matryoshka gives you Mailbox. Master is what you build on top.
+- Builder is yours.
+- Think in Masters, not threads.
+- Master is yours.
+- Your code, your logic.
+- Matryoshka gives you Mailbox.
+- Master is what you build on top.

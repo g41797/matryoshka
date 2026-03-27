@@ -10,6 +10,7 @@ You get:
 - A factory that creates and destroys.
 
 No threads. No queues. No pools.
+
 Just clean ownership in one thread.
 
 ---
@@ -40,18 +41,21 @@ Event :: struct {
 ### Offset 0 rule
 
 The cast `(^Event)(node)` is valid only if `PolyNode` is first.
-This is a convention.
-You follow it.
-Matryoshka has no compile-time check for this.
 
-### Id rule
+- This is a convention.
+- You follow it.
+- Matryoshka has no compile-time check for this.
 
-`id` must be != 0.
-Zero is the zero value of `int`.
-An uninitialized `PolyNode` would have `id == 0`.
+### Id rules
+
+- `id` must be != 0.
+- Zero is the zero value of `int`.
+- An uninitialized `PolyNode` would have `id == 0`.
+
 That is how you catch missing initialization — immediately.
 
 Set `id` once at creation.
+
 Use an enum:
 
 <!-- snippet: examples/layer1/types.odin:10-13 -->
@@ -108,11 +112,12 @@ m: Maybe(^PolyNode)
 | success (get, receive) | `non-nil` — you own it now |
 | failure | unchanged — you still own it |
 
-**Honest note:** `Maybe` is a convention, not a guarantee.
-Nothing stops you from copying the pointer and using it after transfer.
-Odin has no borrow checker.
-Matryoshka makes ownership visible.
-Following it is on you.
+**Honest notes:**
+- `Maybe` is a convention, not a guarantee.
+- Nothing stops you from copying the pointer and using it after transfer.
+- Odin has no borrow checker.
+- Matryoshka makes ownership visible.
+- Following it is on you.
 
 ---
 
@@ -152,4 +157,5 @@ make_builder :: proc(alloc: mem.Allocator) -> Builder {
 - Every path must end.
 - Builder handles creation and destruction.
 - You write the policy.
-- Builder is yours. Your code, your rules. Matryoshka does not need Builder. You do.
+- Builder is yours. Your code, your rules.
+- Matryoshka does not need Builder - You do.

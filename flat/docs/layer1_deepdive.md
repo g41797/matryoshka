@@ -23,16 +23,20 @@ An **intrusive** queue puts the link inside your struct:
     your fields...
 ```
 
-With `using poly: PolyNode` at offset 0, your struct *is* the node.
-No wrapper.
-No extra allocation.
-No extra indirection compared to non-intrusive.
+With `using poly: PolyNode` at offset 0, your struct *is* the node:
+- No wrapper.
+- No extra allocation.
+- No extra indirection compared to non-intrusive.
 
 ---
 
 ## Services don't know your types
 
-Matryoshka services receive `^PolyNode`, store `^PolyNode`, return `^PolyNode`.
+Matryoshka services
+- receive `^PolyNode`
+- store `^PolyNode`
+- return `^PolyNode`.
+
 They don't know what is inside.
 
 All concrete type knowledge lives in user code.
@@ -47,12 +51,18 @@ All concrete type knowledge lives in user code.
 ## One place at a time
 
 `list.Node` has exactly one `prev` and one `next`.
+
 Linking an item into two lists at the same time corrupts both.
+
 An item lives in exactly one place at a time.
+
 The link structure makes correct use natural — one `prev`, one `next`, one place.
+
 But nothing stops you from inserting the same node twice.
+
 That would corrupt both lists.
-This is discipline, not enforcement.
+
+This is _discipline_, not enforcement.
 
 ---
 
@@ -200,19 +210,22 @@ You don't accidentally `defer free` the original pointer.
 
 ### Standalone use
 
-Builder does not need a pool.
-Builder does not need a mailbox.
-Any code that creates and destroys polymorphic items can use Builder directly.
+- Builder does not need a pool.
+- Builder does not need a mailbox.
+- Any code that creates and destroys polymorphic items can use Builder directly.
 
-Matryoshka does not need Builder either.
-Builder, Master — everything described from here on — is your code.
-Matryoshka gives you PolyNode, Mailbox, Pool.
+- Matryoshka does not need Builder either.
+- Builder, Master — everything described from here on — is your code.
+- Matryoshka gives you PolyNode, Mailbox, Pool.
 The rest is friendly advice.
+
 Not forced. Not required.
+
 Use it, change it, or write your own.
 
 One exception: Pool requires hooks (PoolHooks).
-But even there, the simplest Builder — just ctor and dtor wrapped into on_get/on_put — is enough.
+
+But even there, the simplest Builder — just ctor and dtor called from on_get/on_put — is enough.
 
 ---
 
@@ -253,10 +266,10 @@ for i in 0 ..< N {
 
 ### Consume
 
-Pop from list.
-Dispatch on id.
-Process.
-Free:
+- Pop from list.
+- Dispatch on id.
+- Process.
+- Free:
 
 <!-- snippet: examples/layer1/produce_consume.odin:58-81 -->
 ```odin
@@ -309,7 +322,7 @@ These are real conversations between the Author and AI.
 - `m == nil` — the handle itself is nil.
 - `*m == nil` — the inner pointer is null.
 
-But it has no built-in "is this valid?" check. 
+But it has no built-in "is this valid?" check.
 
 `Maybe(T)` in Odin is a tagged union. It adds the `.?` operator and a clear meaning to the state:
 
@@ -363,7 +376,7 @@ It puts the rules into the type:
 ptr, ok := m^.?
 ```
 
-It's safe. No panics. `ok` is `false` if `m == nil`. 
+It's safe. No panics. `ok` is `false` if `m == nil`.
 
 The single-value form is a trap:
 
@@ -417,8 +430,8 @@ m.ptr   = nil
 m.valid = false
 ```
 
-You'll forget. Or you'll read `m.ptr` while `m.valid` is false. 
-`Maybe` and the `.?` operator stop you from doing that. 
+You'll forget. Or you'll read `m.ptr` while `m.valid` is false.
+`Maybe` and the `.?` operator stop you from doing that.
 
 **Summary:**
 
@@ -434,5 +447,3 @@ You'll forget. Or you'll read `m.ptr` while `m.valid` is false.
 |
 
 ---
-
-
