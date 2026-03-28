@@ -68,10 +68,10 @@ ItemId :: enum int {
 
 ---
 
-## Maybe(^PolyNode) — who owns this item
+## MayItem — who owns this item
 
 ```
-m: Maybe(^PolyNode)
+m: MayItem
 
 m^ == nil                       m^ != nil
 ┌───────────┐                   ┌───────────┐
@@ -84,10 +84,10 @@ m^ == nil                       m^ != nil
 
 ### The Ownership Deal
 
-All Matryoshka functions pass items using `^Maybe(^PolyNode)`.
+All Matryoshka functions pass items using `^MayItem`.
 
 ```odin
-m: Maybe(^PolyNode)
+m: MayItem
 
 // m^ != nil  →  you own it. You must transfer, recycle, or dispose it.
 // m^ == nil  →  not yours. Transfer complete, or nothing here.
@@ -112,10 +112,10 @@ m: Maybe(^PolyNode)
 
 **Honest notes:**
 - `Maybe` is a convention, not a guarantee.
-- `Maybe` is a unique ownership handle — one item, one owner.
+- `MayItem` is a who-holds-this handle — one item, one holder.
 - Copying without clearing the original is aliasing. Aliasing is forbidden.
 - Nothing stops you from doing it — Odin has no borrow checker.
-- Matryoshka makes ownership visible.
+- Matryoshka makes who-holds-what visible.
 - Following it is on you.
 
 ---
@@ -135,13 +135,13 @@ make_builder :: proc(alloc: mem.Allocator) -> Builder {
 }
 ```
 
-`ctor(b: ^Builder, id: int) -> Maybe(^PolyNode)`:
+`ctor(b: ^Builder, id: int) -> MayItem`:
 - Allocates the correct type for `id` using `b.alloc`.
 - Sets `poly.id`.
-- Wraps the result in `Maybe(^PolyNode)`.
+- Wraps the result in `MayItem`.
 - Returns nil for unknown ids or allocation failure.
 
-`dtor(b: ^Builder, m: ^Maybe(^PolyNode))`:
+`dtor(b: ^Builder, m: ^MayItem)`:
 - Frees the item using `b.alloc`.
 - Sets `m^ = nil`.
 - Safe to call with `m == nil` or `m^ == nil` — no-op.

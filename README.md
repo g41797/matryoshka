@@ -35,27 +35,52 @@ That is the only real change.
 - You open only what you need.
 - You stop when you have enough.
 
-No hidden system.
-No second model.
+---
+
+## The real rules (read this once)
+
+- ownership is visible
+- data moves
+- nothing is shared
+
+The pieces:
+- `PolyNode` (item)
+- `MayItem` (who holds it)
+- Mailbox (movement)
+- Pool (reuse).
+
+Later you notice - Mailbox and Pool are **also items**.
 
 ---
 
-## The real rule (read this once)
+## This notation looks strange. Good.
 
-Everything follows one rule:
+> *Here is Edward Bear, coming downstairs now, bump, bump, bump, on the back of his
+> head, behind Christopher Robin. It is, as far as he knows, the only way of coming
+> downstairs, but sometimes he feels that there really is another way, if only he
+> could stop bumping for a moment and think of it.*
+>
+> — A.A. Milne, *Winnie-the-Pooh*
 
-- Items are `PolyNode`
-- Ownership is `Maybe(^PolyNode)`
-- Movement is Mailbox
-- Reuse is Pool
+I never read the Winnie-the-Pooh book. I found this at the very opening of Steve McConnell's *Software Project Survival Guide*, and it stayed with me.
 
-Later you notice:
+`^MayItem` — a pointer to an optional pointer — is not normal-looking code.
 
-- Mailbox is also an item
-- Pool is also an item
+The alternatives are not normal-looking either:
 
-Same rules.
-Nothing special.
+| Approach | What you lose |
+|---|---|
+| `^^PolyNode` | Two pointers, no convention. `*m == nil` could mean anything. |
+| `rawptr + bool` | You manage the flag. Forget it once and you have a bug. |
+| callback | Item disappears on return. No explicit handoff. |
+
+`^MayItem` makes one rule visible at every call site:
+
+- `m^ != nil` — you have it. Transfer, recycle, or free.
+- `m^ == nil` — you don't. The API took it, or there was nothing.
+- `m == nil` — nil handle. You passed garbage. API returns error.
+
+It will not look normal. It will look consistent.
 
 ---
 
@@ -85,7 +110,7 @@ main :: proc() {
     c.id = 1
     c.value = 42
 
-    m: Maybe(^PolyNode) = (^PolyNode)(c)
+    m: MayItem = (^PolyNode)(c)
 
     list.push_back(&q, &m.node)
     m^ = nil
@@ -111,13 +136,14 @@ Now replace the list with a Mailbox.
 Ownership rules stay the same.
 
 ```odin
+import . "path/to/matryoshka"  // dot-import — all names available without prefix
 import "core:thread"
 import "core:fmt"
 
 worker :: proc(arg: rawptr) {
     mb := (Mailbox)(arg)
 
-    m: Maybe(^PolyNode)
+    m: MayItem
 
     if mbox_wait_receive(mb, &m) != .Ok {
         return
@@ -136,7 +162,7 @@ worker :: proc(arg: rawptr) {
 main :: proc() {
     mb := mbox_new(context.allocator)
     defer {
-        m: Maybe(^PolyNode) = (^PolyNode)(mb)
+        m: MayItem = (^PolyNode)(mb)
         mbox_close(mb)
         matryoshka_dispose(&m)
     }
@@ -148,7 +174,7 @@ main :: proc() {
     c.id = 1
     c.value = 42
 
-    m: Maybe(^PolyNode) = (^PolyNode)(c)
+    m: MayItem = (^PolyNode)(c)
 
     if mbox_send(mb, &m) != .Ok {
         free(c)
@@ -198,7 +224,7 @@ Chunk :: struct {
 Ownership:
 
 ```odin
-m: Maybe(^PolyNode)
+m: MayItem
 ```
 
 * `m^ == nil` → not yours
@@ -270,29 +296,14 @@ Same rules.
 * Use positive ids for your data
 * System uses negative ids
 * Close Mailbox before dispose
+* Close Pool before dispose
 * Do not pool Mailbox or Pool
 
 ---
 
 ## Takeaway
 
-Matryoshka is not a big library.
-
-It is one idea:
-
-* ownership is visible
-* data moves
-* nothing is shared
-
-If your code reads like this:
-
-* I get it
-* I fill it
-* I send it
-* I receive it
-* I return it
-
-then it works.
+Threads are hard. Matryoshka does not change that. It tries to make the bumping less blind.
 
 ---
 

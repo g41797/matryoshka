@@ -17,9 +17,9 @@ example_ownership :: proc(alloc: mem.Allocator) -> bool {
 	ev.code = 99
 	ev.message = "owned"
 
-	// 2. Take ownership via Maybe.
-	// [itc: typed-to-maybe] — Maybe is now the sole owner; do NOT defer free(ev).
-	m: Maybe(^PolyNode) = &ev.poly
+	// 2. Take ownership via MayItem.
+	// [itc: typed-to-maybe] — MayItem is now the sole owner; do NOT defer free(ev).
+	m: MayItem = &ev.poly
 
 	// 3. Push to list — ownership transferred; set m to nil (you no longer own it).
 	list.push_back(&l, &ev.poly.node)
@@ -30,7 +30,7 @@ example_ownership :: proc(alloc: mem.Allocator) -> bool {
 	if raw == nil {
 		return false
 	}
-	out: Maybe(^PolyNode) = (^PolyNode)(raw)
+	out: MayItem = (^PolyNode)(raw)
 
 	// 5. Verify, free, and clear the handle.
 	ptr, ok := out.?

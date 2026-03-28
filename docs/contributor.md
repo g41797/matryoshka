@@ -84,7 +84,7 @@ When generating or reviewing Odin code for this project, follow these rules:
 - After `mbox_close`, drain the returned list. Do not discard it.
 - After `pool_close`, drain and dispose the returned list.
 
-**Maybe(^PolyNode)**
+**MayItem**
 - Always use `ptr, ok := m.?` — never the single-value form.
 - After a transfer (`mbox_send`, `pool_put`), do not use `m^` — it is nil.
 - If `m^` is still non-nil after `pool_put`, the pool is closed. Dispose manually.

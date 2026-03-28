@@ -54,7 +54,7 @@ unwrap :: proc(m: Mailbox) -> ^_Mbox {
 	return cast(^_Mbox)m
 }
 
-mbox_send :: proc(mb: Mailbox, m: ^Maybe(^PolyNode)) -> SendResult {
+mbox_send :: proc(mb: Mailbox, m: ^MayItem) -> SendResult {
 	if (m == nil) || (m^ == nil) || (unwrap(mb).id == 0) {
 		return .Invalid
 	}

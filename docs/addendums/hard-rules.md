@@ -15,9 +15,9 @@ Violating any rule results in undefined behavior.
 
 ---
 
-## 2. Ownership (`Maybe(^PolyNode)`)
+## 2. Ownership (`MayItem`)
 
-- `Maybe(^PolyNode)` represents UNIQUE ownership.
+- `MayItem` represents UNIQUE ownership.
 - If `m^ != nil` → you own the item.
 - If `m^ == nil` → you do not own any item.
 

@@ -16,7 +16,7 @@ make_builder :: proc(alloc: mem.Allocator) -> Builder {
 
 // ctor allocates the correct type for id and sets id.
 // Returns nil for unknown ids.
-ctor :: proc(b: ^Builder, id: int) -> Maybe(^PolyNode) {
+ctor :: proc(b: ^Builder, id: int) -> MayItem {
 	switch ItemId(id) {
 	case .Event:
 		ev := new(Event, b.alloc)
@@ -24,14 +24,14 @@ ctor :: proc(b: ^Builder, id: int) -> Maybe(^PolyNode) {
 			return nil
 		}
 		ev.poly.id = id
-		return Maybe(^PolyNode)(&ev.poly)
+		return MayItem(&ev.poly)
 	case .Sensor:
 		s := new(Sensor, b.alloc)
 		if s == nil {
 			return nil
 		}
 		s.poly.id = id
-		return Maybe(^PolyNode)(&s.poly)
+		return MayItem(&s.poly)
 	case:
 		return nil
 	}
@@ -39,7 +39,7 @@ ctor :: proc(b: ^Builder, id: int) -> Maybe(^PolyNode) {
 
 // dtor frees internal resources and the node, then sets m^ = nil.
 // Safe to call with m == nil or m^ == nil (no-op).
-dtor :: proc(b: ^Builder, m: ^Maybe(^PolyNode)) {
+dtor :: proc(b: ^Builder, m: ^MayItem) {
 	if m == nil {
 		return
 	}

@@ -88,7 +88,7 @@ IntrResult :: enum {
 
 ```odin
 mbox_new           :: proc(alloc: mem.Allocator) -> Mailbox
-matryoshka_dispose :: proc(m: ^Maybe(^PolyNode))
+matryoshka_dispose :: proc(m: ^MayItem)
 ```
 
 ---
@@ -96,7 +96,7 @@ matryoshka_dispose :: proc(m: ^Maybe(^PolyNode))
 ### send — blocking, ownership transfer
 
 ```odin
-mbox_send :: proc(mb: Mailbox, m: ^Maybe(^PolyNode)) -> SendResult
+mbox_send :: proc(mb: Mailbox, m: ^MayItem) -> SendResult
 ```
 
 
@@ -128,7 +128,7 @@ Note: `mbox_send` returns `.Invalid` on `id == 0` — the caller can recover and
 ## wait_receive — blocking receive, with timeout
 
 ```odin
-mbox_wait_receive :: proc(mb: Mailbox, out: ^Maybe(^PolyNode), timeout: time.Duration = -1) -> RecvResult
+mbox_wait_receive :: proc(mb: Mailbox, out: ^MayItem, timeout: time.Duration = -1) -> RecvResult
 ```
 
 `timeout` values:
@@ -227,7 +227,7 @@ Mailbox operations like `mbox_interrupt` and `try_receive_batch` are thread-safe
 
 **What the list contains:**
 
-- `list.List` is a chain of `^list.Node` — intrusive links, not `^Maybe(^PolyNode)`.
+- `list.List` is a chain of `^list.Node` — intrusive links, not `^MayItem`.
 - Each node is a `PolyNode`.
 -`PolyNode` embeds `list.Node` via `using` at offset 0.
 - Wrap each item in `Maybe` at the processing boundary.

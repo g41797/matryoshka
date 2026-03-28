@@ -78,7 +78,7 @@ Matryoshka uses negative ids.
 
 ## Ownership is unchanged
 
-Same `Maybe(^PolyNode)`.
+Same `MayItem`.
 
 Same rules:
 
@@ -112,7 +112,7 @@ No global factory.
 ## Dispose — self-destroy
 
 ```odin
-matryoshka_dispose :: proc(m: ^Maybe(^PolyNode))
+matryoshka_dispose :: proc(m: ^MayItem)
 ```
 
 How it works:

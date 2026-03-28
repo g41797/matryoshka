@@ -89,7 +89,7 @@ Concepts from Layer 1 form the fundamental building blocks for all subsequent la
 ### Matryoshka owns
 
 - `PolyNode` shape — `node` + `id`.
-- `^Maybe(^PolyNode)` ownership contract across all APIs.
+- `^MayItem` ownership contract across all APIs.
 - Pool modes per `pool_get` call.
 - Hook dispatch — `on_get` / `on_put` called with `ctx`.
 - Guarantee: hooks called outside pool mutex.

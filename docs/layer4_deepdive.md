@@ -114,7 +114,7 @@ No global registry.
 One entry point for everything.
 
 ```odin
-matryoshka_dispose :: proc(m: ^Maybe(^PolyNode))
+matryoshka_dispose :: proc(m: ^MayItem)
 ```
 
 How it works:
@@ -200,7 +200,7 @@ Master A sends it to Master B.
 ### Sender:
 
 ```odin
-m: Maybe(^PolyNode)
+m: MayItem
 m^ = (^PolyNode)(mb)
 
 if mbox_send(out, &m) != .Ok {
@@ -212,7 +212,7 @@ if mbox_send(out, &m) != .Ok {
 ### Receiver:
 
 ```odin
-m: Maybe(^PolyNode)
+m: MayItem
 
 if mbox_wait_receive(in, &m) != .Ok {
     return
@@ -303,7 +303,7 @@ Instead of custom destroy:
 Example:
 
 ```odin
-m: Maybe(^PolyNode) = (^PolyNode)(mb)
+m: MayItem = (^PolyNode)(mb)
 
 remaining := mbox_close(mb)
 // drain remaining first

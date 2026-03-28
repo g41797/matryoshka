@@ -23,7 +23,7 @@ The same creation and destruction logic from Builder lives in `on_get` and `on_p
 ## Hook examples
 
 ```odin
-master_on_get :: proc(ctx: rawptr, id: int, in_pool_count: int, m: ^Maybe(^PolyNode)) {
+master_on_get :: proc(ctx: rawptr, id: int, in_pool_count: int, m: ^MayItem) {
     master := (^Master)(ctx)
     if m^ == nil {
         // no item available — create new one using master.alloc
@@ -48,7 +48,7 @@ master_on_get :: proc(ctx: rawptr, id: int, in_pool_count: int, m: ^Maybe(^PolyN
     }
 }
 
-master_on_put :: proc(ctx: rawptr, in_pool_count: int, m: ^Maybe(^PolyNode)) {
+master_on_put :: proc(ctx: rawptr, in_pool_count: int, m: ^MayItem) {
     master := (^Master)(ctx)
     if m == nil || m^ == nil { return }
     node := m^
@@ -163,7 +163,7 @@ freeMaster :: proc(master: ^Master) {
     }
     
     // 3. teardown pool
-    m_pool: Maybe(^PolyNode) = (^PolyNode)(master.pool)
+    m_pool: MayItem = (^PolyNode)(master.pool)
     matryoshka_dispose(&m_pool)
 
     // 4. close and drain mailbox
@@ -171,7 +171,7 @@ freeMaster :: proc(master: ^Master) {
     // drain remaining...
     
     // 5. teardown mailbox
-    m_mb: Maybe(^PolyNode) = (^PolyNode)(master.inbox)
+    m_mb: MayItem = (^PolyNode)(master.inbox)
     matryoshka_dispose(&m_mb)
 
     // 6. delete ids dynamic array (user-owned)
@@ -196,7 +196,7 @@ To avoid runtime latency, pre-allocate before starting Masters:
 master := newMaster(context.allocator)
 
 for _ in 0..<100 {
-    m: Maybe(^PolyNode)
+    m: MayItem
     if pool_get(master.pool, int(FlowId.Chunk), .New_Only, &m) == .Ok {
         pool_put(master.pool, &m)  // put back immediately — goes to free-list
     }
@@ -244,7 +244,7 @@ mbox_send(mb, &m)
 
 Layer 3 sender:\
 ```odin
-m: Maybe(^PolyNode)
+m: MayItem
 defer pool_put(p, &m)  // [itc: defer-put-early]
 if pool_get(p, int(FlowId.Chunk), .Available_Or_New, &m) != .Ok {
     return
@@ -292,7 +292,7 @@ defer freeMaster(master)
 
 **Sender Master:**\
 ```odin
-m: Maybe(^PolyNode)
+m: MayItem
 defer pool_put(master.pool, &m)  // [itc: defer-put-early]
 
 if pool_get(master.pool, int(FlowId.Chunk), .Available_Or_New, &m) != .Ok {
@@ -314,7 +314,7 @@ if mbox_send(mb, &m) != .Ok {
 
 **Receiver Master:**\
 ```odin
-m: Maybe(^PolyNode)
+m: MayItem
 defer pool_put(master.pool, &m)  // safety net
 
 if mbox_wait_receive(mb, &m) != .Ok {
@@ -352,7 +352,7 @@ for {
     raw := list.pop_front(&remaining)
     if raw == nil { break }
     poly := (^PolyNode)(raw)
-    m: Maybe(^PolyNode) = poly
+    m: MayItem = poly
     pool_put(master.pool, &m)
     if m^ != nil {
         // pool was already closed — dispose manually

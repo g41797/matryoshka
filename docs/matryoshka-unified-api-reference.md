@@ -22,7 +22,7 @@ All items — user data and infrastructure — embed this first.
 
 ---
 
-### Maybe(^PolyNode)
+### MayItem
 
 The ownership handle.
 
@@ -85,7 +85,7 @@ pool_new :: proc(alloc: mem.Allocator) -> Pool
 ### Disposal
 
 ```odin
-matryoshka_dispose :: proc(m: ^Maybe(^PolyNode))
+matryoshka_dispose :: proc(m: ^MayItem)
 ```
 
 Entry:
@@ -135,7 +135,7 @@ SendResult :: enum {
     Invalid,
 }
 
-mbox_send :: proc(mb: Mailbox, m: ^Maybe(^PolyNode)) -> SendResult
+mbox_send :: proc(mb: Mailbox, m: ^MayItem) -> SendResult
 
 RecvResult :: enum {
     Ok,
@@ -148,7 +148,7 @@ RecvResult :: enum {
 
 mbox_wait_receive :: proc(
     mb: Mailbox,
-    out: ^Maybe(^PolyNode),
+    out: ^MayItem,
     timeout: time.Duration = -1,
 ) -> RecvResult
 
@@ -244,7 +244,7 @@ pool_get :: proc(
     p: Pool,
     id: int,
     mode: Pool_Get_Mode,
-    m: ^Maybe(^PolyNode),
+    m: ^MayItem,
 ) -> Pool_Get_Result
 
 // Wait for stored item only.
@@ -252,16 +252,16 @@ pool_get :: proc(
 pool_get_wait :: proc(
     p: Pool,
     id: int,
-    m: ^Maybe(^PolyNode),
+    m: ^MayItem,
     timeout: time.Duration,
 ) -> Pool_Get_Result
 
 // Return item to pool.
 // Calls on_put.
-pool_put :: proc(p: Pool, m: ^Maybe(^PolyNode))
+pool_put :: proc(p: Pool, m: ^MayItem)
 
 // Return chain of items.
-pool_put_all :: proc(p: Pool, m: ^Maybe(^PolyNode))
+pool_put_all :: proc(p: Pool, m: ^MayItem)
 ```
 
 ---
@@ -290,8 +290,8 @@ Put:
 PoolHooks :: struct {
     ctx:    rawptr,
     ids:    [dynamic]int,   // all > 0
-    on_get: proc(ctx: rawptr, id: int, in_pool_count: int, m: ^Maybe(^PolyNode)),
-    on_put: proc(ctx: rawptr, in_pool_count: int, m: ^Maybe(^PolyNode)),
+    on_get: proc(ctx: rawptr, id: int, in_pool_count: int, m: ^MayItem),
+    on_put: proc(ctx: rawptr, in_pool_count: int, m: ^MayItem),
 }
 ```
 
@@ -324,7 +324,7 @@ on_put:
 
 ## Summary
 
-* One handle → `Maybe(^PolyNode)`
+* One handle → `MayItem`
 * One movement → Mailbox
 * One reuse → Pool
 * One teardown → `matryoshka_dispose`

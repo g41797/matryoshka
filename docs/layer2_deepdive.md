@@ -10,7 +10,7 @@
 
 ```odin
 for {
-    m: Maybe(^PolyNode)
+    m: MayItem
     switch mbox_wait_receive(mb, &m) {
     case .Ok:
         // process item
@@ -52,7 +52,7 @@ for {
     raw := list.pop_front(&remaining)
     if raw == nil { break }
     poly := (^PolyNode)(raw)        // safe: PolyNode at offset 0
-    m: Maybe(^PolyNode) = poly
+    m: MayItem = poly
     dtor(&b, &m)
 }
 ```
@@ -74,7 +74,7 @@ for {
     raw := list.pop_front(&batch)
     if raw == nil { break }
     poly := (^PolyNode)(raw)
-    m: Maybe(^PolyNode) = poly
+    m: MayItem = poly
     // process item
     dtor(&b, &m)
 }
@@ -98,7 +98,7 @@ freeMaster :: proc(master: ^Master) {
     // drain remaining items...
 
     // teardown mailbox
-    m_mb: Maybe(^PolyNode) = (^PolyNode)(master.inbox)
+    m_mb: MayItem = (^PolyNode)(master.inbox)
     matryoshka_dispose(&m_mb)
 
     alloc := master.alloc
@@ -184,7 +184,7 @@ flowchart TD
 
 ```odin
 for {
-    m: Maybe(^PolyNode)
+    m: MayItem
     switch mbox_wait_receive(mb_main, &m) {
     case .Ok:
         // handle main message
@@ -197,7 +197,7 @@ for {
             raw := list.pop_front(&batch)
             if raw == nil { break }
             poly := (^PolyNode)(raw)
-            m2: Maybe(^PolyNode) = poly
+            m2: MayItem = poly
             // process oob item
             dtor(&b, &m2)
         }
@@ -280,7 +280,7 @@ Receiver dispatches on id:
 
 ```odin
 for {
-    m: Maybe(^PolyNode)
+    m: MayItem
     switch mbox_wait_receive(mb, &m) {
     case .Ok:
         ptr, ok := m^.?
@@ -342,7 +342,7 @@ mbox_send(worker.inbox, &m)
 
 // Worker receives
 for {
-    m: Maybe(^PolyNode)
+    m: MayItem
     switch mbox_wait_receive(worker.inbox, &m) {
     case .Ok:
         ptr, ok := m^.?

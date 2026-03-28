@@ -114,7 +114,7 @@ This is _discipline_, not enforcement.
 - Mailbox and Pool are opaque — they cannot track what type they hold.
 - Master is the only actor that can safely cast `^PolyNode` back to a concrete type.
 - Only one Master should hold a given item at any moment.
-- The `^Maybe(^PolyNode)` rule (nil = you don't own it) is checked every time you pass an item.
+- The `^MayItem` rule (nil = you don't own it) is checked every time you pass an item.
 
 ---
 
@@ -130,7 +130,7 @@ make_builder :: proc(alloc: mem.Allocator) -> Builder {
     return Builder{alloc = alloc}
 }
 
-ctor :: proc(b: ^Builder, id: int) -> Maybe(^PolyNode) {
+ctor :: proc(b: ^Builder, id: int) -> MayItem {
     switch ItemId(id) {
     case .Event:
         ev := new(Event, b.alloc)
@@ -138,20 +138,20 @@ ctor :: proc(b: ^Builder, id: int) -> Maybe(^PolyNode) {
             return nil
         }
         ev.poly.id = id
-        return Maybe(^PolyNode)(&ev.poly)
+        return MayItem(&ev.poly)
     case .Sensor:
         s := new(Sensor, b.alloc)
         if s == nil {
             return nil
         }
         s.poly.id = id
-        return Maybe(^PolyNode)(&s.poly)
+        return MayItem(&s.poly)
     case:
         return nil
     }
 }
 
-dtor :: proc(b: ^Builder, m: ^Maybe(^PolyNode)) {
+dtor :: proc(b: ^Builder, m: ^MayItem) {
     if m == nil {
         return
     }
@@ -183,7 +183,7 @@ ev.poly.id = int(ItemId.Event)
 ev.code = 99
 ev.message = "owned"
 // ...
-m: Maybe(^PolyNode) = &ev.poly
+m: MayItem = &ev.poly
 ```
 
 With Builder:
@@ -311,9 +311,9 @@ These are real conversations between the Author and AI.
 
 ---
 
-## `^Maybe(^PolyNode)` vs `^^PolyNode`
+## `^MayItem` vs `^^PolyNode`
 
-**The Question:** I designed Matryoshka to use `^Maybe(^PolyNode)`, but why the extra layer? Can't I just use `^^PolyNode`? It's just two pointers. It's simpler. Why the `Maybe`?
+**The Question:** I designed Matryoshka to use `^MayItem`, but why the extra layer? Can't I just use `^^PolyNode`? It's just two pointers. It's simpler. Why the `Maybe`?
 
 **The Reality:** They are not the same. `^^PolyNode` is just a pointer to a pointer. It gives you two nil states:
 
@@ -324,7 +324,7 @@ But it has no built-in "is this valid?" check.
 
 `Maybe(T)` in Odin is a tagged union. It adds the `.?` operator and a clear meaning to the state:
 
-| Expression | `^Maybe(^PolyNode)` | `^^PolyNode` |
+| Expression | `^MayItem` | `^^PolyNode` |
 |------------|---------------------|--------------|
 | `m == nil` | nil handle — a bug | same |
 | `m^ == nil` | you do NOT own it | same (but why? who knows.) |
@@ -335,7 +335,7 @@ But it has no built-in "is this valid?" check.
 
 The big deal is the transfer signal. With `^^PolyNode`, setting `*m = nil` just nulls a pointer. It doesn't tell the caller *why*. Did it transfer? Did it fail? Was it never there?
 
-With `^Maybe(^PolyNode)`, `m^ = nil` is the rule:
+With `^MayItem`, `m^ = nil` is the rule:
 - API sets it on success → "I took it, it's mine now."
 - API leaves it on failure → "I didn't take it, still yours."
 - You check it to know if you need to free it.
@@ -392,7 +392,7 @@ It returns the value directly but **panics at runtime if m is nil.** In a multi-
 
 ---
 
-> ***Author's note.*** *This dialogue never was. I never was fully sure about `^Maybe(^PolyNode)`. Still not sure. But it's right.*
+> ***Author's note.*** *This dialogue never was. I never was fully sure about `^MayItem`. Still not sure. But it's right.*
 
 ---
 
@@ -405,7 +405,7 @@ If you use `^^PolyNode`, you have to add a flag by hand to get the same safety.
 It would look like this:
 
 ```odin
-// Manual equivalent of Maybe(^PolyNode)
+// Manual equivalent of MayItem
 Owned :: struct {
     ptr:   ^PolyNode,
     valid: bool,       // the flag Maybe gives you for free
@@ -434,7 +434,7 @@ You'll forget. Or you'll read `m.ptr` while `m.valid` is false.\
 
 **Summary:**
 
-| | `^Maybe(^PolyNode)` | `^^PolyNode` + manual flag |
+| | `^MayItem` | `^^PolyNode` + manual flag |
 |---|---|---|
 | ownership bit | built-in | you maintain it by hand |
 | safe extract | `m^.?` — one step | `if valid { use ptr }` — error-prone |

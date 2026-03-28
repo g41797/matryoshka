@@ -6,7 +6,7 @@ Package matryoshka is an inter-thread communication library for Odin.
 
 Foundation:
   - PolyNode: intrusive node embedded at offset 0 in every item.
-  - Maybe(^PolyNode): ownership handle used at every API boundary.
+  - MayItem (alias for Maybe(^PolyNode)): ownership handle used at every API boundary.
 
 Services:
   - Mailbox: moves items between threads with blocking receive.

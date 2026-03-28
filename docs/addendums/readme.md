@@ -45,12 +45,12 @@ Chunk :: struct {
 
 ---
 
-### 2. Ownership (`Maybe(^PolyNode)`)
+### 2. Ownership (`MayItem`)
 
 Ownership is explicit.
 
 ```odin
-m: Maybe(^PolyNode)
+m: MayItem
 ```
 
 Rules:
@@ -229,7 +229,7 @@ c := new(Chunk)
 c.id = 1
 c.value = 42
 
-m: Maybe(^PolyNode) = (^PolyNode)(c)
+m: MayItem = (^PolyNode)(c)
 
 // give away
 list.push_back(&q, &m.node)
