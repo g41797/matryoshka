@@ -93,9 +93,10 @@ You MUST NOT:
 
 Semantics:
 
-* `on_put` expresses intent
-* pool enforces limits
-* pool may destroy items regardless of intent
+* Pool controls the flow — it decides when hooks are called (and when not to).
+* When hooks are called, hooks decide the item's fate.
+* `on_get`: hook creates or reinitializes — hook's call.
+* `on_put`: hook keeps (`m^ != nil`) or destroys (`m^ = nil`) — hook's call.
 
 You MUST NOT:
 

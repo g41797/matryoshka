@@ -112,8 +112,9 @@ m: Maybe(^PolyNode)
 
 **Honest notes:**
 - `Maybe` is a convention, not a guarantee.
-- Nothing stops you from copying the pointer and using it after transfer.
-- Odin has no borrow checker.
+- `Maybe` is a unique ownership handle — one item, one owner.
+- Copying without clearing the original is aliasing. Aliasing is forbidden.
+- Nothing stops you from doing it — Odin has no borrow checker.
 - Matryoshka makes ownership visible.
 - Following it is on you.
 

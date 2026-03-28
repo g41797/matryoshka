@@ -62,6 +62,11 @@ See the result table below.
 
 Builder from Layer 1 creates and destroys by id.
 Recycler extends that idea.
+
+In standalone code (Layer 1–2), Builder creates and destroys directly.\
+In pooled code (Layer 3+), `on_get` and `on_put` take over that role.\
+Recycler replaces Builder when you have a pool.
+
 Recycler adds:
 - **Reuse** — reinitialize instead of destroy + create.
 - **Policy** — decide whether to keep or drop.

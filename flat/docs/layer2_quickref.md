@@ -48,6 +48,7 @@ run :: proc(arg: rawptr) {
 
 Mailbox
 - moves `^PolyNode` from one Master to another.
+- MPMC: multiple producers and multiple consumers are supported.
 - does not know your types.
 - blocking, with optional timeout.
 - supports interrupt and close.

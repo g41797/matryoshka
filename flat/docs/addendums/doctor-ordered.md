@@ -18,12 +18,17 @@ No shortcuts.
 
 ## 2. Clear ownership immediately
 
-After send or put:
+After send:
 
 ```odin
-mbox_send(mb, &m)
-m^ = nil
+if mbox_send(mb, &m) != .Ok {
+    // m^ is unchanged — you still own it
+    // free or retry
+}
+// On .Ok: m^ is already nil — ownership transferred
 ```
+
+After put: `pool_put` sets `m^ = nil` on success — same rule applies.
 
 Do not keep stale pointers.
 

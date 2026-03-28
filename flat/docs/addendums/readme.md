@@ -116,9 +116,9 @@ on_put:
 
 Important:
 
-* `on_put` expresses intent
-* pool enforces limits and may still destroy items
-* final decision is always the pool
+* Pool controls the flow — it decides when hooks are called (and when not to).
+* When hooks are called, hooks decide the item's fate.
+* `on_put`: hook keeps (`m^ != nil`) or destroys (`m^ = nil`) — hook's call.
 
 ---
 
