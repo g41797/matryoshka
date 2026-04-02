@@ -1,6 +1,6 @@
 # API Reference
 
-!!! info "Heads up"
+!!! info "Note"
     The API reference is a **standalone generated site** (odin-doc), separate from this documentation.
 
     Your options:
