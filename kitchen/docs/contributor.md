@@ -18,7 +18,8 @@ When editing documents, follow these rules:
 - Do not pack a full explanation into one sentence.
 - Use bullets or short sequential sentences instead.
 - If you feel the urge to write "which", "that", or "because" mid-sentence — stop. Split.
-- When writing multiple short sentences in sequence (not a bullet list), add a trailing backslash `\` to every line except the last. Without it, Markdown joins them into one long line. Do not use blank lines between them as a workaround — use `\` instead.
+- When writing multiple short sentences in sequence (not a bullet list), add two trailing spaces to every line except the last. Without them, Markdown joins them into one long line. Do not use blank lines between them as a workaround — use two trailing spaces instead.
+- Exception: README.md is rendered by GitHub (CommonMark), which supports trailing `\`. Use `\` there only.
 
 **Language**
 

@@ -19,3 +19,7 @@ Open the next block only when you need it.
 
 - [Sources](https://github.com/g41797/matryoshka)
 - [Documentation](https://g41797.github.io/matryoshka/)
+
+## Credits
+
+- [Laytan](https://github.com/laytan) — all black magic of Odin docs generation stolen from [his repo](https://github.com/laytan/odin-tree-sitter).

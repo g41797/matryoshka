@@ -1,7 +1,7 @@
 # Doll 4 — Infrastructure as Items — Deep Dive
 
-> See [Quick Reference](block4_quickref.md) for API shape and rules.\
->\
+> See [Quick Reference](block4_quickref.md) for API shape and rules.  
+>  
 > **Prerequisite:** [Doll 1](block1_quickref.md) + [Doll 2](block2_quickref.md) + [Doll 3](block3_quickref.md).
 
 ---
@@ -19,8 +19,8 @@ Now:
 * Mailbox is also an item.
 * Pool is also an item.
 
-Same ownership.\
-Same movement.\
+Same ownership.  
+Same movement.  
 No second system.
 
 ---
@@ -68,7 +68,7 @@ Matryoshka casts back to internal structs.
 
 ## ID split — data vs infrastructure
 
-One field.\
+One field.  
 Clear rule.
 
 | id    | meaning     |
@@ -200,7 +200,7 @@ No special rules.
 
 ## Example — passing a mailbox
 
-Master A creates mailbox.\
+Master A creates mailbox.  
 Master A sends it to Master B.
 
 ### Sender:
@@ -277,8 +277,8 @@ Use only for special control flows.
 
 ## Pool and infrastructure
 
-You cannot do this.\
-Do not try to use Pool's get/put for Mailboxes or Pools.\
+You cannot do this.  
+Do not try to use Pool's get/put for Mailboxes or Pools.  
 If the pool is open, it will treat them as a "foreign" id and panic.
 
 ---

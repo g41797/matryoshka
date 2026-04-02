@@ -65,8 +65,8 @@ See the result table below.
 Builder from Doll 1 creates and destroys by id.
 Recycler extends that idea.
 
-In standalone code (Doll 1–2), Builder creates and destroys directly.\
-In pooled code (Doll 3+), `on_get` and `on_put` take over that role.\
+In standalone code (Doll 1–2), Builder creates and destroys directly.  
+In pooled code (Doll 3+), `on_get` and `on_put` take over that role.  
 Recycler replaces Builder when you have a pool.
 
 Recycler adds:

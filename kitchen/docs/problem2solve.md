@@ -10,19 +10,19 @@ It means:
 - long-running
 - correct over clever
 
-Event processors.\
-Background workers.\
+Event processors.  
+Background workers.  
 Modular monoliths — one process, many modules passing messages.
 
-These systems exist in every company.\
+These systems exist in every company.  
 They just do not usually get written in new languages.
 
 ## Why Odin
 
-Odin calls itself a general-purpose programming language built for high performance, modern systems.\
+Odin calls itself a general-purpose programming language built for high performance, modern systems.  
 This project is one test of that claim.
 
-Game developers use Odin — and do it well.\
+Game developers use Odin — and do it well.  
 But general-purpose means more than games.
 
 This is the expedition: prove Odin can host boring systems too.
@@ -31,12 +31,12 @@ This is the expedition: prove Odin can host boring systems too.
 
 ## Problem 1 — is it gone or still mine?
 
-You have a thing. You call an exchange function — a point where ownership may transfer to another thread.\
+You have a thing. You call an exchange function — a point where ownership may transfer to another thread.  
 May. Not always. The other side might be closed. Full. Not ready.
 
 After the call: is your thing gone? Or is it still yours?
 
-In single-threaded code this question doesn't exist — functions are deterministic.\
+In single-threaded code this question doesn't exist — functions are deterministic.  
 At thread boundaries, it does.
 
 You need one check at the call site. No flags. No separate state.
@@ -59,9 +59,9 @@ The first version of this project was built on `^Maybe($T)`.
 
 `^Maybe($T)` is generic and type-safe. One type per exchange point.
 
-Then came a real application: events, commands, responses — all through the same exchange point.\
-`^Maybe($T)` locks you to one type.\
-You need a second exchange point for the next type, a third for the next.\
+Then came a real application: events, commands, responses — all through the same exchange point.  
+`^Maybe($T)` locks you to one type.  
+You need a second exchange point for the next type, a third for the next.  
 Infrastructure multiplies. Code duplicates.
 
 `PolyNode` — one base, one exchange point. Works for everything. Suitable not for everyone — see [Doll 1](block1_quickref.md).

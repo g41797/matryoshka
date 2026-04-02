@@ -1,7 +1,7 @@
 # Doll 3 — Pool — Deep Dive
 
-> See [Quick Reference](block3_quickref.md) for API signatures and contracts.\
->\
+> See [Quick Reference](block3_quickref.md) for API signatures and contracts.  
+>  
 > **Prerequisite:** [Doll 1](block1_quickref.md) + [Doll 2](block2_quickref.md).
 
 ---
@@ -14,10 +14,10 @@ All pool operations (`pool_init`, `pool_get`, `pool_get_wait`, `pool_put`, `pool
 
 ## Recycler — from Builder to hooks
 
-You already have Builder from Doll 1.\
+You already have Builder from Doll 1.  
 Builder creates and destroys by id.
 
-Recycler extends that idea.\
+Recycler extends that idea.  
 Recycler adds:
 
 - **Reuse** — reinitialize instead of destroy + create.
@@ -79,9 +79,9 @@ master_on_put :: proc(ctx: rawptr, in_pool_count: int, m: ^MayItem) {
 
 ## Standalone Recycler use
 
-Recycler without Pool is valid.\
-It is Builder with policy.\
-User calls `on_get` and `on_put` directly.\
+Recycler without Pool is valid.  
+It is Builder with policy.  
+User calls `on_get` and `on_put` directly.  
 User decides keep or drop without pool storage.
 
 ---
@@ -95,11 +95,11 @@ A foreign id on `pool_put` is almost always a bug:
 - memory corruption
 - use-after-free
 
-Silent recycling would create silent leaks or use-after-free later.\
+Silent recycling would create silent leaks or use-after-free later.  
 A loud panic during development is better than hunting ghosts in production.
 
-Zero is always invalid because it is the zero value of `int`.\
-An uninitialized `PolyNode` would have `id == 0`.\
+Zero is always invalid because it is the zero value of `int`.  
+An uninitialized `PolyNode` would have `id == 0`.  
 Panicking on zero catches missing initialization immediately.
 
 ---
@@ -123,10 +123,10 @@ pool_init(p, &hooks)
 
 ## Master with Pool — extending Doll 2's Master
 
-In Doll 2, Master held Builder and mailbox references.\
+In Doll 2, Master held Builder and mailbox references.  
 Now Master holds Pool and Recycler (PoolHooks) too.
 
-Builder from Doll 1 becomes the basis for your hooks.\
+Builder from Doll 1 becomes the basis for your hooks.  
 The same creation and destruction logic lives in `on_get` and `on_put`.
 
 ```odin
@@ -191,7 +191,7 @@ freeMaster :: proc(master: ^Master) {
 }
 ```
 
-Pool borrows hooks — pointer, not copy.\
+Pool borrows hooks — pointer, not copy.  
 `freeMaster` owns the full teardown.
 
 ---
@@ -217,7 +217,7 @@ for _ in 0..<100 {
 
 ## Pool Get Modes — examples
 
-Mode is a per-call parameter of `pool_get`.\
+Mode is a per-call parameter of `pool_get`.  
 Not a pool-wide setting.
 
 ```odin
@@ -240,17 +240,17 @@ if pool_get(master.pool, int(FlowId.Chunk), .Available_Only, &m) != .Ok {
 
 ### Builder to Pool — simplest upgrade from Doll 2
 
-Replace Builder.ctor/dtor calls with pool_get/pool_put.\
+Replace Builder.ctor/dtor calls with pool_get/pool_put.  
 Same patterns, now with recycling.
 
-Doll 2 sender:\
+Doll 2 sender:  
 ```odin
 m := ctor(&b, int(FlowId.Chunk))
 // fill
 mbox_send(mb, &m)
 ```
 
-Doll 3 sender:\
+Doll 3 sender:  
 ```odin
 m: MayItem
 defer pool_put(p, &m)  // [itc: defer-put-early]
@@ -266,7 +266,7 @@ mbox_send(mb, &m)
 
 ### Backpressure
 
-`on_put` checks `in_pool_count`.\
+`on_put` checks `in_pool_count`.  
 Too many idle items → dispose.
 
 ```odin
@@ -277,7 +277,7 @@ if in_pool_count > 400 {
 }
 ```
 
-Start simple.\
+Start simple.  
 Add limits when it hurts.
 
 ---
@@ -290,7 +290,7 @@ flowchart LR
     MB -->|receive| RM["Recv Master<br/>(pool)"]
 ```
 
-**Setup:**\
+**Setup:**  
 ```odin
 FlowId :: enum int { Chunk = 1, Progress = 2 }
 
@@ -298,7 +298,7 @@ master := newMaster(context.allocator)
 defer freeMaster(master)
 ```
 
-**Sender Master:**\
+**Sender Master:**  
 ```odin
 m: MayItem
 defer pool_put(master.pool, &m)  // [itc: defer-put-early]
@@ -320,7 +320,7 @@ if mbox_send(mb, &m) != .Ok {
 // m^ is nil — transfer done — defer pool_put is a no-op
 ```
 
-**Receiver Master:**\
+**Receiver Master:**  
 ```odin
 m: MayItem
 defer pool_put(master.pool, &m)  // safety net
@@ -352,7 +352,7 @@ case .Progress:
 - The `defer` is a safety net for paths you did not anticipate.
 - Belt and suspenders — intentional.
 
-**Shutdown:**\
+**Shutdown:**  
 ```odin
 remaining := mbox_close(mb)
 
@@ -380,5 +380,5 @@ freeMaster(master)
 - Network server — request buffers from Pool, dispatched to handler Masters, response buffers returned to Pool.
 - Streaming processor — data flows through a chain of Masters, Pool absorbs allocation spikes.
 
-Same vocabulary at every level: get → fill → send → receive → put back.\
+Same vocabulary at every level: get → fill → send → receive → put back.  
 Only the hooks grow when you need control.

@@ -2,11 +2,11 @@
 
 ## The site name problem
 
-The site is named "Matryoshka — Layered Inter-Thread Communication."\
-The name advertises a mechanism.\
+The site is named "Matryoshka — Layered Inter-Thread Communication."  
+The name advertises a mechanism.  
 The content teaches an insight.
 
-A reader coming from the name expects a messaging library.\
+A reader coming from the name expects a messaging library.  
 A reader of the docs discovers an ownership model.
 
 The name undersells the real value.
@@ -25,26 +25,26 @@ The real rules, from the README:
 - data moves
 - nothing is shared
 
-Inter-thread messaging (Mailbox) is Doll 2 of 4.\
-It is not the primary concept.\
+Inter-thread messaging (Mailbox) is Doll 2 of 4.  
+It is not the primary concept.  
 `^MayItem` — visible ownership at every call site — is.
 
 ---
 
 ## The Odin community
 
-Odin's dominant audience is game developers.\
-Their threading model is simple: main thread, worker pool, known data types.\
-They roll their own job queue in 50 lines.\
+Odin's dominant audience is game developers.  
+Their threading model is simple: main thread, worker pool, known data types.  
+They roll their own job queue in 50 lines.  
 They do not feel the pain matryoshka solves.
 
-The Odin forum thread "What's holding Odin back?" is evidence.\
-Developers list missing language features and syntax debates.\
+The Odin forum thread "What's holding Odin back?" is evidence.  
+Developers list missing language features and syntax debates.  
 Nobody mentions: lack of server-side project culture, tests, CI/CD patterns, libraries for long-running services.
 
-That is not a cult.\
-That is a blind spot.\
-The community does not know what it does not have.\
+That is not a cult.  
+That is a blind spot.  
+The community does not know what it does not have.  
 Nobody has built it in the open yet.
 
 ---
@@ -53,8 +53,8 @@ Nobody has built it in the open yet.
 
 Some years ago, after a microservices failure, a realization:
 
-Most of a programming career was spent building modular monoliths.\
-Not by design.\
+Most of a programming career was spent building modular monoliths.  
+Not by design.  
 By accumulation.
 
 The conclusion:
@@ -68,17 +68,17 @@ The conclusion:
 
 ## The pattern: checking the niche
 
-The same exploration was done with Zig.\
-The project was tofu: [Tofu — Asynchronous Messaging for Boring Systems](https://ziggit.dev/t/tofu-asynchronous-messaging-for-boring-systems/14517).\
-The question was: can Zig be used for boring server-side systems?\
+The same exploration was done with Zig.  
+The project was tofu: [Tofu — Asynchronous Messaging for Boring Systems](https://ziggit.dev/t/tofu-asynchronous-messaging-for-boring-systems/14517).  
+The question was: can Zig be used for boring server-side systems?  
 The answer: checked. Maybe yes. Maybe no. The niche was mapped.
 
-Matryoshka is the same expedition, in Odin.\
-It is building blocks for otofu — an Odin port of tofu.\
+Matryoshka is the same expedition, in Odin.  
+It is building blocks for otofu — an Odin port of tofu.  
 The question: can Odin be used for boring systems at all?
 
-Not: will everyone use it.\
-Not: will the game dev community adopt it.\
+Not: will everyone use it.  
+Not: will the game dev community adopt it.  
 Just: is it possible? Is the niche real?
 
 ---
@@ -92,23 +92,23 @@ Just: is it possible? Is the niche real?
 - Ownership of data is serious.
 - A race condition is a production incident.
 
-That is exactly what `^MayItem` addresses.\
-Ownership visible at every call site.\
+That is exactly what `^MayItem` addresses.  
+Ownership visible at every call site.  
 Because in boring systems, "I forgot to check" costs real money.
 
 ---
 
 ## The positioning fix
 
-The Zig post title was direct: "Asynchronous Messaging for Boring Systems."\
-It said who the project is for.\
-It said what it solves.\
+The Zig post title was direct: "Asynchronous Messaging for Boring Systems."  
+It said who the project is for.  
+It said what it solves.  
 It did not oversell.
 
-The current site name "Layered Inter-Thread Communication" sounds like an ingredient.\
+The current site name "Layered Inter-Thread Communication" sounds like an ingredient.  
 It does not say who needs it or why.
 
-A more honest name: "Matryoshka — Building Blocks for Boring Systems in Odin."\
+A more honest name: "Matryoshka — Building Blocks for Boring Systems in Odin."  
 Narrow. Honest. Findable by exactly the person who needs it.
 
 ---
