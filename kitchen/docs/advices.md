@@ -18,6 +18,7 @@ Do not rely on `context.allocator`.
 - If a struct stores an allocator as a field, all internal calls use the stored one.
 
 Why:
+
 - `context.allocator` can be changed at any point up the call stack.
 - A function that uses `context.allocator` may silently allocate from a different allocator than the one that will be used to free.
 - Explicit allocator makes the allocation source visible at every call site.

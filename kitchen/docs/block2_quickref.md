@@ -7,11 +7,13 @@
 ---
 
 You get:
+
 - Items that cross thread boundaries.
 - A mailbox that moves ownership between Masters.
 - A Master that ties it all together.
 
 No pool yet:
+
 - Builder creates items.
 - Builder destroys items.
 
@@ -24,12 +26,14 @@ Mailbox moves them.
 A thread is a thin container that runs exactly one Master.
 
 You
+
 - create the thread.
 - pass the Master to it.
 
 From here on, you think in Masters, not threads.
 
 Master
+
 - owns the mailboxes that belong to its domain.
 - lives on the heap.
 - is the unit of work in matryoshka.
@@ -47,6 +51,7 @@ run :: proc(arg: rawptr) {
 ## Mailbox — move items between Masters
 
 Mailbox
+
 - moves `^PolyNode` from one Master to another.
 - MPMC: multiple producers and multiple consumers are supported.
 - does not know your types.
@@ -134,6 +139,7 @@ mbox_wait_receive :: proc(mb: Mailbox, out: ^MayItem, timeout: time.Duration = -
 ```
 
 `timeout` values:
+
 - `-1` — wait forever (default).
 - `0` — non-blocking poll. Returns `.Timeout` immediately if empty.
 - `> 0` — wait up to this duration. Returns `.Timeout` on expiry.
@@ -225,6 +231,7 @@ try_receive_batch :: proc(mb: Mailbox) -> (list.List, RecvResult)
 - On `.Interrupted`: items in the queue are not returned. Call again to receive them.
 
 Mailbox operations like `mbox_interrupt` and `try_receive_batch` are thread-safe and can be called from any thread to interact with the mailbox.
+
 - Caller owns all items in the returned list.
 
 **What the list contains:**
@@ -232,6 +239,7 @@ Mailbox operations like `mbox_interrupt` and `try_receive_batch` are thread-safe
 - `list.List` is a chain of `^list.Node` — intrusive links, not `^MayItem`.
 - Each node is a `PolyNode`.
 -`PolyNode` embeds `list.Node` via `using` at offset 0.
+
 - Wrap each item in `MayItem` at the processing boundary.
 
 ---
@@ -243,6 +251,7 @@ Mailbox operations like `mbox_interrupt` and `try_receive_batch` are thread-safe
 - It is the only participant that knows concrete types.
 
 Master holds:
+
 - Builder (from Doll 1).
 - At least one Mailbox.
 - Any other state it needs.

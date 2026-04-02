@@ -5,6 +5,7 @@
 ---
 
 You get:
+
 - Items that travel.
 - Ownership that is visible.
 - A factory that creates and destroys.
@@ -111,6 +112,7 @@ m: MayItem
 | failure | unchanged — you still hold it |
 
 **Honest notes:**
+
 - `Maybe` is a convention, not a guarantee.
 - `MayItem` is a who-holds-this handle — one item, one holder.
 - Copying without clearing the original is aliasing. Aliasing is forbidden.
@@ -136,12 +138,14 @@ make_builder :: proc(alloc: mem.Allocator) -> Builder {
 ```
 
 `ctor(b: ^Builder, id: int) -> MayItem`:
+
 - Allocates the correct type for `id` using `b.alloc`.
 - Sets `poly.id`.
 - Wraps the result in `MayItem`.
 - Returns nil for unknown ids or allocation failure.
 
 `dtor(b: ^Builder, m: ^MayItem)`:
+
 - Frees the item using `b.alloc`.
 - Sets `m^ = nil`.
 - Safe to call with `m == nil` or `m^ == nil` — no-op.

@@ -38,6 +38,7 @@ You go deeper only when the next doll solves a real problem you have today.
 > which is the minimum layer this belongs to?
 
 **The mantra:**
+
 - Code.
 - Fail.
 - Learn.
@@ -50,6 +51,7 @@ Or you throw it away and rewrite.
 That is fine.
 
 **Naming:**
+
 - _Matryoshka_ — the brand name.
 - _itc_ (inter-thread communication) — the short name for code and tags.
 - Code tags like `[itc: defer-put-early]` use `itc` because it is shorter.

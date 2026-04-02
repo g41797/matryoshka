@@ -19,6 +19,7 @@ Builder creates and destroys by id.
 
 Recycler extends that idea.\
 Recycler adds:
+
 - **Reuse** — reinitialize instead of destroy + create.
 - **Policy** — decide whether to keep or drop.
 
@@ -88,6 +89,7 @@ User decides keep or drop without pool storage.
 ## Why panic on unknown id?
 
 A foreign id on `pool_put` is almost always a bug:
+
 - wrong cast earlier
 - wrong pool
 - memory corruption

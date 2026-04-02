@@ -7,6 +7,7 @@
 ---
 
 You get:
+
 - Items that come back.
 - Reuse without re-allocation.
 - Policy hooks for flow control.
@@ -21,6 +22,7 @@ First version is simple.
 It works.
 
 Then:
+
 - too many items
 - or not enough
 
@@ -68,6 +70,7 @@ In pooled code (Doll 3+), `on_get` and `on_put` take over that role.\
 Recycler replaces Builder when you have a pool.
 
 Recycler adds:
+
 - **Reuse** — reinitialize instead of destroy + create.
 - **Policy** — decide whether to keep or drop.
 - **Counts** — `in_pool_count` tells how many items are idle.
@@ -100,6 +103,7 @@ Pool passes it as-is.
 Hook must handle nil `ctx` safely.
 
 `ids` is a `[dynamic]int` owned by the user:
+
 - Populate with `append` before calling `pool_init`.
 - Delete in `freeMaster` before `free(master, alloc)`.
 
@@ -151,6 +155,7 @@ After `on_put`:
 - Hooks must NOT call `pool_get` or `pool_put` — the pool is in the middle of its work when a hook is called. A reentrant call sees inconsistent state and corrupts the pool silently, with no immediate error.
 
 > `[itc: hook-reentrancy-guard]` — To catch violations at runtime: use a `@(thread_local) _pool_in_hook: bool` — set before calling any hook, cleared after. Assert `!_pool_in_hook` on entry to `pool_get`/`pool_put`. A pool struct field would not work — it would incorrectly block other threads calling `pool_get` concurrently.
+
 - Allocator stored in `ctx` must be thread-safe.
 - `ctx` must outlive the pool.
 
@@ -196,6 +201,7 @@ matryoshka_dispose :: proc(m: ^MayItem)
 ```
 
 `pool_init`:
+
 - Takes `^PoolHooks`.
 - Pool stores the pointer.
 - User keeps the struct.
@@ -311,6 +317,7 @@ if pool_get(p, id, .Available_Or_New, &m) != .Ok {
 ```
 
 Three outcomes when `defer pool_put` runs:
+
 - `m^ == nil` (pool_get failed, or item was transferred) → `pool_put` is a no-op.
 - `m^ != nil` (item was not transferred) → `pool_put` recycles or `on_put` disposes.
 - `m^ != nil` with unknown id or zero id → `pool_put` panics — programming error.

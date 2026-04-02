@@ -24,6 +24,7 @@ An **intrusive** queue puts the link inside your struct:
 ```
 
 With `using poly: PolyNode` at offset 0, your struct *is* the node:
+
 - No wrapper.
 - No extra allocation.
 - No extra indirection compared to non-intrusive.
@@ -33,6 +34,7 @@ With `using poly: PolyNode` at offset 0, your struct *is* the node:
 ## Services don't know your types
 
 Matryoshka services
+
 - receive `^PolyNode`
 - store `^PolyNode`
 - return `^PolyNode`.
@@ -42,6 +44,7 @@ They don't know what is inside.
 All concrete type knowledge lives in user code.
 
 `PolyNode.id` tells you the type. It makes the cast safe:
+
 - Zero is always invalid.
 - Unknown id is a programming error.
 - Known id → you can cast. Correctness is on you.
@@ -200,6 +203,7 @@ m := ctor(&b, int(ItemId.Event))
 ```
 
 Builder prevents the mistakes:
+
 - You don't think about wrapping.
 - You don't forget to set id.
 - You don't accidentally `defer free` the original pointer.

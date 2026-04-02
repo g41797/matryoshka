@@ -62,6 +62,7 @@ for {
 ```
 
 Key points:
+
 - `.Interrupted` hands over no message — `m` stays nil.
 - The receiver must loop back to `mbox_wait_receive`.
 - The interrupted flag clears itself — no reset needed.
@@ -87,6 +88,7 @@ for {
 ```
 
 The cast `(^PolyNode)(raw)` works because:
+
 - Every item has `PolyNode` at offset 0 (your convention).
 - `list.Node` is the first field of `PolyNode`.
 
@@ -149,6 +151,7 @@ Nothing outside it should call `free` on `^Master` directly.
 No pool yet.
 
 Builder
+
 - creates items.
 - destroys items.
 
