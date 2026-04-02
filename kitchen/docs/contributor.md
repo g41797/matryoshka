@@ -106,6 +106,13 @@ When generating or reviewing Odin code for this project, follow these rules:
 - After `mbox_close`, the returned list is yours — walk it and handle each item. Do not discard it.
 - After `pool_close`, the returned list is yours — walk it and handle each item as your shutdown strategy requires.
 
+**Node ownership**
+
+- Never send or put back a node that is still linked.
+- `mbox_send` and `pool_put` always panic if the node is linked — in debug and release.
+- This is intentional: silent list corruption is worse than a loud crash.
+- A node becomes unlinked when received (`mbox_wait_receive`) or retrieved from the pool (`pool_get`).
+
 **MayItem**
 
 - Always use `ptr, ok := m^.?` — never the single-value form.

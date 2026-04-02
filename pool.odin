@@ -375,11 +375,11 @@ _pool_put_impl :: proc(ptr: ^_Pool, node: ^PolyNode, id: int, m: ^MayItem) {
 	// If hook didn't dispose it, store it.
 	if !ptr.closed && m^ != nil {
 		l := ptr.lists[id]
-		when ODIN_DEBUG {
-			if polynode_is_linked(node) {
-				sync.mutex_unlock(&ptr.mutex)
-				panic("pool_put: node is still linked")
-			}
+		// Putting a linked node corrupts the list silently.
+		// A loud panic here is cheaper than hunting corruption later.
+		if polynode_is_linked(node) {
+			sync.mutex_unlock(&ptr.mutex)
+			panic("pool_put: node is still linked — detach before putting back")
 		}
 		list.push_front(&l, &node.node)
 		ptr.lists[id] = l

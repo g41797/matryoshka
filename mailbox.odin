@@ -76,10 +76,10 @@ mbox_send :: proc(mb: Mailbox, m: ^MayItem) -> SendResult {
 		return .Closed
 	}
 
-	when ODIN_DEBUG {
-		if polynode_is_linked(ptr) {
-			panic("mbox_send: node is still linked")
-		}
+	// Sending a linked node corrupts the list silently.
+	// A loud panic here is cheaper than hunting corruption later.
+	if polynode_is_linked(ptr) {
+		panic("mbox_send: node is still linked — detach before sending")
 	}
 
 	list.push_back(&mbx_Ptr^.list, &ptr^.node)
