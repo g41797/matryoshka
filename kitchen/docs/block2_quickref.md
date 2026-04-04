@@ -40,8 +40,8 @@ Master
 
 ```odin
 // Thread proc
-run :: proc(arg: rawptr) {
-    m := (^Master)(arg)
+run :: proc(t: ^thread.Thread) {
+    m := (^Master)(t.data)
     master_run(m)
 }
 ```
