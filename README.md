@@ -63,7 +63,7 @@ PolyNode :: struct {
     id:         int,
 }
 
-MayItem :: ^Maybe(^PolyNode)
+MayItem :: Maybe(^PolyNode)
 ```
 
 Every item embeds PolyNode first.
@@ -81,8 +81,8 @@ Ownership:
 m: MayItem
 ```
 
-* `m^ == nil` → not yours
-* `m^ != nil` → yours
+* `m == nil` → not yours
+* `m != nil` → yours
 
 You must:
 
@@ -172,54 +172,27 @@ Doll 2 in practice.\
 The ownership rule does not change at thread boundaries.
 
 ```odin
-import . "path/to/matryoshka"  // dot-import — all names available without prefix
-import "core:thread"
-import "core:fmt"
+worker_proc :: proc(t: ^thread.Thread) {
+    m := (^Master)(t.data)
 
-worker :: proc(arg: rawptr) {
-    mb := (Mailbox)(arg)
+    for {
+        mi: MayItem
+        res := matryoshka.mbox_wait_receive(m.inbox, &mi)
 
-    m: MayItem
-
-    if mbox_wait_receive(mb, &m) != .Ok {
-        return
+        #partial switch res {
+        case .Ok:
+            ptr, ok := mi.?
+            if !ok { continue }
+            // ... process ptr, then:
+            dtor(&m.builder, &mi)
+        case .Closed:
+            return
+        }
     }
-
-    ptr, ok := m.?
-    if !ok { return }
-
-    chunk := (^Chunk)(ptr)
-    fmt.println(chunk.value)
-
-    free(chunk)
-    m^ = nil
-}
-
-main :: proc() {
-    mb := mbox_new(context.allocator)
-    defer {
-        m: MayItem = (^PolyNode)(mb)
-        mbox_close(mb)
-        matryoshka_dispose(&m)
-    }
-
-    t: thread.Thread
-    thread.create(&t, worker, mb)
-
-    c := new(Chunk)
-    c.id = 1
-    c.value = 42
-
-    m: MayItem = (^PolyNode)(c)
-
-    if mbox_send(mb, &m) != .Ok {
-        free(c)
-        return
-    }
-
-    thread.join(t)
 }
 ```
+
+→ [Full runnable example: examples/block2/readme_worker.odin](https://github.com/g41797/matryoshka/blob/main/examples/block2/readme_worker.odin)
 
 ---
 
