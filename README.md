@@ -24,7 +24,7 @@ In open source, I followed the same path:
 
 Matryoshka is the same expedition, in Odin.
 
-It is building blocks for otofu — an Odin port of tofu.
+It is the **building blocks for [modular monoliths](https://www.milanjovanovic.tech/blog/what-is-a-modular-monolith)**.
 
 Still joy of programming.
 
